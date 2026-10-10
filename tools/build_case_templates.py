@@ -780,6 +780,18 @@ tpl('CT-62', 'XOA update fails: updater cannot reach xen-orchestra.com (TLS-inte
     match=r'xoa-updater|xen-orchestra', notes=VN)
 
 
+tpl('CT-63', 'Xen Orchestra: update and nightly backups fail with ENOSPC (appliance or remote out of space)', 'xo', 'XO',
+    'Updating Xen Orchestra fails with "ENOSPC: no space left on device" and the nightly backup job starts failing as well.',
+    'mixed', ['xcp.xo_disk_full'], [
+        (-3000, XOI, '{s} xo01 xo-install[1301]: error ENOSPC: no space left on device, write', 'typical'),
+        (-2000, XOJ, '{s} xo01 xo-server[771]: 2026-03-10T09:26:40.000Z xo:backups:worker ERROR Backup job nightly failed: ENOSPC: no space left on device, write', 'typical'),
+        (-1990, XOJ, '{s} xo01 xo-server[771]: 2026-03-10T09:26:50.000Z xo:backups:worker ERROR remote nfs-backup01 is full', 'typical')],
+    cause='Only the thread titles were seen in search results (an XO update failing with ENOSPC; a backup error although space seemed available); the article text was not read, so no documented cause is claimed.',
+    resolution=['Generic check, not taken from the cited threads: df -h on the XO appliance and on the backup remote, free space, then rerun the failed update or job.'],
+    kbs=[kb(FM + '7246/xen-orchestra-update-failed-error-enospc-no-space-left-on-device', 'Xen Orchestra Update Failed - Error: ENOSPC: no space left on device', 'primary'),
+         kb(FM + '5788/backup-error-with-space-available', 'Backup error with space available', 'secondary')],
+    match=r'ENOSPC|no space left|is full', notes=VN)
+
 # ============================================================================= not templated (kept in the report only)
 out = dict(version=1,
            source='ANONYMISED templates derived from %d resolved support case reports (CT-01..CT-36) plus synthetic scenarios built from public KB/community summaries (CT-37 onwards, marked in their notes; CT-50 onwards are Vates XCP-ng / Xen Orchestra scenarios from public search summaries). Hostnames, addresses and identifiers are invented; log lines are synthetic (basis case = wording from the case excerpt, typical = written for the template).' % 42,

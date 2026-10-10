@@ -3370,6 +3370,61 @@
     }
    ],
    "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
+  },
+  {
+   "id": "CT-63",
+   "title": "Xen Orchestra: update and nightly backups fail with ENOSPC (appliance or remote out of space)",
+   "product": "xo",
+   "version": "XO",
+   "issue": "Updating Xen Orchestra fails with \"ENOSPC: no space left on device\" and the nightly backup job starts failing as well.",
+   "evidence": "mixed",
+   "bundle": true,
+   "expect_rules": [
+    "xcp.xo_disk_full"
+   ],
+   "expect_snapshot": false,
+   "match": "ENOSPC|no space left|is full",
+   "noise": "auto",
+   "lines": [
+    [
+     -3000,
+     "xo/xo-install.log",
+     "{s} xo01 xo-install[1301]: error ENOSPC: no space left on device, write",
+     "typical"
+    ],
+    [
+     -2000,
+     "xo/journalctl-xo-server.txt",
+     "{s} xo01 xo-server[771]: 2026-03-10T09:26:40.000Z xo:backups:worker ERROR Backup job nightly failed: ENOSPC: no space left on device, write",
+     "typical"
+    ],
+    [
+     -1990,
+     "xo/journalctl-xo-server.txt",
+     "{s} xo01 xo-server[771]: 2026-03-10T09:26:50.000Z xo:backups:worker ERROR remote nfs-backup01 is full",
+     "typical"
+    ]
+   ],
+   "extra_files": {},
+   "cause": "Only the thread titles were seen in search results (an XO update failing with ENOSPC; a backup error although space seemed available); the article text was not read, so no documented cause is claimed.",
+   "resolution": [
+    "Generic check, not taken from the cited threads: df -h on the XO appliance and on the backup remote, free space, then rerun the failed update or job."
+   ],
+   "kb": [
+    {
+     "id": "https://xcp-ng.org/forum/topic/7246/xen-orchestra-update-failed-error-enospc-no-space-left-on-device",
+     "title": "Xen Orchestra Update Failed - Error: ENOSPC: no space left on device",
+     "role": "primary",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/5788/backup-error-with-space-available",
+     "title": "Backup error with space available",
+     "role": "secondary",
+     "seen": "2026-10-10"
+    }
+   ],
+   "notes": "SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case. Log wording is approximated from error names and phrases seen in those summaries, not copied from real logs; the pages themselves were not read in full."
   }
  ]
 }

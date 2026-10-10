@@ -90,14 +90,14 @@ def _template_entries(rule_id, text):
         out.append(dict(topic='Resolved-case template %s: %s' % (t['id'], t['title']), precision='case-template', cause=t.get('cause', ''),
                         resolution=t.get('resolution', []), notes=t.get('notes', ''), basis='case',
                         articles=[_art(k) for k in t.get('kb', []) if k.get('role') != 'noise'],
-                        template=t['id'], evidence=t.get('evidence', '')))
+                        template=t['id'], evidence=t.get('evidence', ''), synthetic='SYNTHETIC SCENARIO' in (t.get('notes') or '')))
     return out
 
 
-def research(rule_id, text, search_phrase=None, report_kb=None, kind='rule'):
+def research(rule_id, text, search_phrase=None, report_kb=None, kind='rule', vendor=None):
     """Return {'status': 'found'|'none', 'entries': [...], 'more': n, 'searched': phrase, 'message': str}."""
     lib = _load()
-    vendor = _vendor(rule_id) if rule_id else 'Broadcom'
+    vendor = vendor or (_vendor(rule_id) if rule_id else 'Broadcom')
     base = dict(library_date=lib['researched'], searched=search_phrase or '', vendor=vendor)
     if kind == 'report':
         kbs = [k for k in re.findall(r'\d{3,}', str(report_kb or ''))]
@@ -108,7 +108,7 @@ def research(rule_id, text, search_phrase=None, report_kb=None, kind='rule'):
         return dict(base, status='none', entries=[], more=0, message='No Broadcom KB is referenced by the report for this item.')
     if kind == 'generic' or not rule_id:
         return dict(base, status='none', entries=[], more=0,
-                    message='No Broadcom KB found: this message matches no known signature, so it was not researched. Use the search phrase manually.')
+                    message=('No Broadcom KB found' if vendor == 'Broadcom' else 'No public Vates KB found') + ': this message matches no known signature, so it was not researched. Use the search phrase manually.')
     tmpl = _template_entries(rule_id, text)
     hit, general = [], []                     # (priority, entry) - higher priority first, library order otherwise
     for e in lib['entries']:
@@ -122,7 +122,7 @@ def research(rule_id, text, search_phrase=None, report_kb=None, kind='rule'):
     if not ents:
         return dict(base, status='none', entries=[], more=0,
                     message=('No Broadcom KB found in the LogLens KB library for this finding (researched %s).' % lib['researched']) if vendor == 'Broadcom' else
-                    'No Vates/XCP-ng article found in the LogLens KB library for this finding (researched %s, search summaries only).' % lib.get('vates_researched', lib['researched']))
+                    'No public Vates KB found in the LogLens KB library for this finding (researched %s; search summaries only, no article text read). Try the search phrase manually on docs.xcp-ng.org, docs.xen-orchestra.com and the XCP-ng forum.' % lib.get('vates_researched', lib['researched']))
     return dict(base, status='found', entries=ents[:MAX_SHOWN], more=max(0, len(ents) - MAX_SHOWN),
                 message=('Matched from the LogLens KB library and anonymised resolved-case templates (research snapshot %s, not a live search).' if tmpl else
                          'Matched from the LogLens KB library (research snapshot %s, not a live search).') % (lib['researched'] if vendor == 'Broadcom' else lib.get('vates_researched', lib['researched']))

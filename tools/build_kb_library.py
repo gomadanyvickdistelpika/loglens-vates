@@ -424,6 +424,10 @@ kb('XO cannot connect to a pool: self-signed / expired certificate', ['xcp.xo_tl
     A('https://github.com/vatesfr/xen-orchestra/issues/2723', 'SSL certificate verification fails in stats query · Issue #2723 · vatesfr/xen-orchestra')],
    'Per the summaries: since a 5.8.x release XO does not connect to a host with an invalid (self-signed or expired) certificate unless that is explicitly allowed in the UI; plain HTTP is possible but unencrypted; the docs describe regenerating an expired appliance certificate with openssl and restarting xo-server.',
    ['Accept the certificate via the warning/toggle in the server settings after verifying it, or install a trusted certificate on every pool host (xe commands exist for host certificates).', 'Expired appliance cert: back up /etc/ssl cert.pem/key.pem, regenerate with openssl req -x509, restart xo-server (docs summary).'])
+kb('XO appliance / backup remote out of space (ENOSPC)', ['xcp.xo_disk_full'],
+   [A(F + '7246/xen-orchestra-update-failed-error-enospc-no-space-left-on-device', 'Xen Orchestra Update Failed - Error: ENOSPC: no space left on device'), A(F + '5788/backup-error-with-space-available', 'Backup error with space available')],
+   'Per the search-result titles only: an XO update failed with ENOSPC, and another thread covers a backup error although space seemed available. The article text was not read, so no cause is claimed here.',
+   [], basis='title')
 kb('XO from sources: build / node errors', ['xcp.xo_build'],
    [A('https://docs.xen-orchestra.com/getting-started/install-from-sources', 'Installing XO from source'), A('https://github.com/vatesfr/xen-orchestra/issues/2774', 'Errors during build process · Issue #2774 · vatesfr/xen-orchestra'),
     A('https://github.com/vatesfr/xen-orchestra/issues/5782', 'loader.js - Cannot find module · Issue #5782 · vatesfr/xen-orchestra'), A('https://github.com/ronivay/XenOrchestraInstallerUpdater/issues/62', 'Build fails with error · Issue #62 · ronivay/XenOrchestraInstallerUpdater')],

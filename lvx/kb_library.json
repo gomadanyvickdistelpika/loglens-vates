@@ -2552,6 +2552,30 @@
    "basis": "summary"
   },
   {
+   "topic": "XO appliance / backup remote out of space (ENOSPC)",
+   "priority": 0,
+   "rules": [
+    "xcp.xo_disk_full"
+   ],
+   "match": null,
+   "articles": [
+    {
+     "id": "https://xcp-ng.org/forum/topic/7246/xen-orchestra-update-failed-error-enospc-no-space-left-on-device",
+     "title": "Xen Orchestra Update Failed - Error: ENOSPC: no space left on device",
+     "seen": "2026-10-10"
+    },
+    {
+     "id": "https://xcp-ng.org/forum/topic/5788/backup-error-with-space-available",
+     "title": "Backup error with space available",
+     "seen": "2026-10-10"
+    }
+   ],
+   "cause": "Per the search-result titles only: an XO update failed with ENOSPC, and another thread covers a backup error although space seemed available. The article text was not read, so no cause is claimed here.",
+   "resolution": [],
+   "notes": "",
+   "basis": "title"
+  },
+  {
    "topic": "XO from sources: build / node errors",
    "priority": 0,
    "rules": [

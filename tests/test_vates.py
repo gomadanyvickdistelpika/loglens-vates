@@ -178,12 +178,23 @@ class KbHonesty(unittest.TestCase):
         r = kb.research('xcp.vm_start_fail', 'nothing that matches', 'x')
         self.assertIn(r['status'], ('found', 'none'))
         if r['status'] == 'none':
-            self.assertIn('No Vates/XCP-ng article found', r['message'])
+            self.assertIn('No public Vates KB found', r['message'])
 
     def test_broadcom_wording_unchanged(self):
         r = kb.research('esx.psod', 'nothing specific', 'x')
         self.assertEqual(r['vendor'], 'Broadcom')
         self.assertIn('No Broadcom KB found', r['message'])
+
+
+class Accuracy(unittest.TestCase):
+    def test_vates_harness_at_least_95_percent_and_40_scenarios(self):
+        import vates_accuracy
+        import vates_gen
+        positives = [n for n, sc in vates_gen.S.items() if sc['expect']]
+        self.assertGreaterEqual(len(positives), 40)
+        self.assertGreaterEqual(len(vates_gen.S) - len(positives), 4)      # negative / clean bundles
+        rate, fails = vates_accuracy.run(verbose=False, formats=['dir', 'nested'])
+        self.assertGreaterEqual(rate, 95.0, [(f[0], f[1], f[2], f[3][:1]) for f in fails])
 
 
 class Scenarios(unittest.TestCase):

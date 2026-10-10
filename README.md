@@ -50,21 +50,25 @@ resolution steps. If nothing in the library matches, the report says so plainly 
 LogLens also recognises **XCP-ng hosts** (product `xcpng`) and **Xen Orchestra** (product `xo`), the same way it separates `esxi` / `vcenter`:
 * **Files:** `xensource.log`, `SMlog` (+ rotated/`.gz`), `xha.log`, `xen/hypervisor.log`, xenopsd, and generic `daemon.log` / `kern.log` / `messages`
   inside an XCP-ng bundle (xen-bugtool style); XO journalctl text, `xo-server` logs, `xoa-updater` and installer logs. Year-less syslog lines take the incident's year.
-* **16 rules** (`xcp.*`): dom0 disk full, xapi/toolstack down, update/RPU failure, pool master unreachable, HA self-fence, SR full, coalesce stuck,
+* **17 rules** (`xcp.*`): dom0 disk full, xapi/toolstack down, update/RPU failure, pool master unreachable, HA self-fence, SR full, coalesce stuck,
   VDI chain too long (SR_BACKEND_FAILURE_109), SR/PBD unplugged (iSCSI/NFS), not enough memory, VM start failure, migration failure,
-  XO backup failure (VDI_IO_ERROR), XO TLS/self-signed certificate, XO from-sources build, XOA updater. Ranking knows root vs symptom
+  XO backup failure (VDI_IO_ERROR), XO appliance/remote out of space (ENOSPC), XO TLS/self-signed certificate, XO from-sources build, XOA updater. Ranking knows root vs symptom
   (SR full -> coalesce stuck -> chain too long / VM fails to start; disk full -> xapi down; HA fence -> master unreachable).
 * **VMware behaviour is unchanged.** In a Vates-only bundle the VMware-flavoured shared rules are switched off (only NTP, DNS and certificate stay).
 * **KB research:** `lvx/kb_library.json` also holds Vates/XCP-ng/XO pages (title + URL + the date they appeared in a web search). Only **search-result summaries**
   were used - **the article text could not be read**, so causes/resolutions are what the summary said; forum threads are community advice, not official guidance.
   Findings from these rules are labelled *Vates/XCP-ng KB research*; with nothing matching they say so.
-* **Synthetic scenarios CT-50..CT-62** (`python -m lvx templates list`), anonymised (`lab.example`, `192.0.2.x`), each marked
+* **Same web experience as VMware:** every finding has *Show log context (+-4 lines)* (raw lines from the bundle file with line numbers, hit highlighted,
+  `GET /api/evidence?job=..&finding=..&ctx=4`), *open in viewer* at the exact line, and a **Confirm / Reject / Unsure** control with an optional note.
+  Verdicts are kept in the browser (`localStorage`, per bundle + incident time), pushed to the server (`POST /api/jobs/<id>/verdicts`) and written into the
+  Markdown / HTML / JSON exports ("Reviewer verdict"). Findings without a public page say **No public Vates KB found**.
+* **Synthetic scenarios CT-50..CT-63** (`python -m lvx templates list`), anonymised (`lab.example`, `192.0.2.x`), each marked
   *SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case*. Log wording is approximated from error names
   and phrases in those summaries, not copied from real logs. Build one: `python -m lvx templates build CT-53 OUT` then upload `OUT/CT-53.tgz`.
 
 ## Resolved-case templates
 
-`lvx/case_templates.json` holds anonymised templates (CT-01..CT-36 distilled from resolved support-case reports; CT-37..CT-49 VMware and CT-50..CT-62 Vates scenarios built from public summaries): the symptom in generic wording,
+`lvx/case_templates.json` holds anonymised templates (CT-01..CT-36 distilled from resolved support-case reports; CT-37..CT-49 VMware and CT-50..CT-63 Vates scenarios built from public summaries): the symptom in generic wording,
 a **synthetic** log excerpt, the detections LogLens must raise, the cause and resolution the case documented, and the Broadcom KB links the case cited.
 When a finding matches a template, its resolution and KB links appear in the finding's "Broadcom KB research" block, labelled
 *from a resolved support case (anonymised)*. If the case documented no resolution or cited no KB, the template says so.
@@ -82,6 +86,11 @@ with path-traversal/symlink protection and size caps, and deleted when the bundl
 Nothing is sent to any external service.
 
 ## Tests
+`python tests/vates_accuracy.py` - Vates harness: 57 positive scenarios (host, pool/HA, storage/SR, VM, XO) + 4 clean/negative bundles, each as dir / tgz /
+nested-zip bundles with a base and a noisy profile (benign warnings, keyword near-misses, same signatures 12 days earlier as decoys); expected rank-1 rule per
+scenario; clean bundles must raise no high/critical rule finding. Passes at >= 95%. It is **in-sample** (I wrote rules and scenarios), 9 held-out phrasings were added
+after the first run and the misses fixed in the rules; see the caveats below.
+`python tests/test_vates_api.py` (evidence / verdict API) and `tests/test_vates_ui.py` (Playwright: needs node + the global `playwright` module + Chromium; skipped otherwise).
 `python tests/test_vates.py` (XCP-ng/XO detection, rules, ranking, KB honesty, scenarios), `python tests/test_all.py` (unit + HTTP API + your real Toolbox/TDLog samples when present) and
 `python tests/accuracy.py` (synthetic bundles with planted incidents, decoys outside the window and noise,
 across dir/zip/tgz/nested-archive formats; passes at >= 95%).

@@ -508,8 +508,8 @@ class Analyzer:
             _first=f.first or 0)
 
 
-    @staticmethod
-    def _attach_kb(d):
+    def _attach_kb(self, d):
+        vendor = 'Vates/XCP-ng' if getattr(self, 'vates_only', False) else None
         if d['kind'] == 'rule':
             text = ' '.join([d['title']] + [s['text'] for s in d['samples']] + [v['message'] for v in d['variants']])
             r = kb.research(d['id'], text, d.get('search'))
@@ -517,7 +517,7 @@ class Analyzer:
             text = ' '.join([d['title']] + [s['text'] for s in d['samples']])
             r = kb.research('vc.disk_full', text, d.get('search'))
         else:
-            r = kb.research(None, '', d['title'][:100], kind='generic')
+            r = kb.research(None, '', d['title'][:100], kind='generic', vendor=vendor)
         d['kb_research'] = r
 
     @staticmethod
