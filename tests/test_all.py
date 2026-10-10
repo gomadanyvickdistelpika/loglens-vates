@@ -312,7 +312,7 @@ class KbResearch(unittest.TestCase):
                 self.assertIn(r, BY_ID, '%s: unknown rule %s' % (e['topic'], r))
             for a in e['articles']:
                 self.assertTrue(a['title'])
-                self.assertRegex(kb.article_url(a['id']), r'^https://knowledge\.broadcom\.com/external/article(/\d+|\?legacyId=\d+)$')
+                self.assertRegex(kb.article_url(a['id']), r'^https://(?:knowledge\.broadcom\.com/external/article(/\d+|\?legacyId=\d+)$|(?:docs\.)?(?:xcp-ng\.org|xen-orchestra\.com|docs\.xen-orchestra\.com|github\.com)/)')
             if e.get('basis', 'summary') == 'summary':
                 self.assertTrue(e['resolution'] or e['cause'], e['topic'])
 

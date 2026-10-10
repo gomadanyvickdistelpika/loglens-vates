@@ -27,6 +27,20 @@ _VC_NOISE = {
     'var/log/vmware/sts/sts-runtime.log': ['{t} INFO  [{n}] [sts.audit] Successfully issued token for user svc-{c}@vsphere.local'],
     'var/log/vmware/vpostgres/postgresql.log': ['{t} UTC LOG:  checkpoint complete: wrote {n} buffers (0.{c}%)'],
 }
+_XCP_NOISE = {
+    'var/log/xensource.log': ['{s} xcp01 xapi: [ info|xcp01.lab.example|{n} ||xapi] Event.next completed in 12ms',
+                              '{s} xcp01 xenopsd-xc: [debug|xcp01.lab.example|{n} ||xenops] VM {n} state is running',
+                              '{s} xcp01 xapi: [ info|xcp01.lab.example|{n} ||pool_db_sync] sync completed'],
+    'var/log/SMlog': ['{s} xcp01 SM: [{n}] lock: opening lock file /var/lock/sm/{n}/sr',
+                      '{s} xcp01 SMGC: [{n}] Running garbage collector for SR check, nothing to do',
+                      '{s} xcp01 SM: [{n}] sr_scan completed'],
+    'var/log/daemon.log': ['{s} xcp01 stunnel: LOG5[{n}]: Service [xapi] accepted connection from 192.0.2.{c}'],
+}
+_XO_NOISE = {
+    'xo/journalctl-xo-server.txt': ['{s} xo01 xo-server[771]: {u} xo:main INFO http://[::]:80 listening',
+                                    '{s} xo01 xo-server[771]: {u} xo:xo-server INFO new client connected ({n})',
+                                    '{s} xo01 xo-server[771]: {u} xo:api INFO xapi event loop ok'],
+}
 
 
 def _load():
@@ -79,6 +93,10 @@ def build_bundle(template, out_dir, days=3, step=120, seed=11, anchor=ANCHOR):
         noise.update(_VC_NOISE)
     if t['product'] == 'guest':
         noise.update(_ESX_NOISE)
+    if t['product'] in ('xcpng', 'vates'):
+        noise.update(_XCP_NOISE)
+    if t['product'] in ('xo', 'vates'):
+        noise.update(_XO_NOISE)
     files = {}
     ts = anchor - days * 86400
     end = anchor + 3600

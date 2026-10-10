@@ -1,4 +1,4 @@
-"""Broadcom KB research attached to every finding.
+"""KB research attached to every finding (Broadcom KB for VMware findings; public Vates/XCP-ng/Xen Orchestra pages for the Vates rules).
 
 Data comes from lvx/kb_library.json: a dated SNAPSHOT of research on knowledge.broadcom.com (summaries of search results,
 not article text) plus optional extra entries from the file named by LVX_KB_FILE.  This is NOT a live lookup.  When nothing
@@ -14,6 +14,8 @@ _cache = None
 
 def article_url(aid):
     aid = str(aid)
+    if aid.startswith('https://'):          # Vates / XCP-ng / Xen Orchestra articles are stored by their full URL
+        return aid
     if aid.startswith('legacy:'):
         return 'https://knowledge.broadcom.com/external/article?legacyId=' + aid[7:]
     return 'https://knowledge.broadcom.com/external/article/' + aid
@@ -45,13 +47,33 @@ def reset_cache():
 
 def library_info():
     lib = _load()
-    return dict(researched=lib['researched'], source=lib['source'], entries=len(lib['entries']))
+    return dict(researched=lib['researched'], source=lib['source'], entries=len(lib['entries']),
+                vates_researched=lib.get('vates_researched'), vates_source=lib.get('vates_source'))
+
+
+def _art(a):
+    """Article dict for output. Broadcom ids render as 'KB <id>'; URL ids (Vates / XCP-ng / XO) as their site, with the date the
+    result was seen in a search."""
+    aid = str(a['id'])
+    if aid.startswith('https://'):
+        host = aid.split('/')[2]
+        label = {'github.com': 'GitHub', 'xen-orchestra.com': 'Xen Orchestra', 'docs.xen-orchestra.com': 'Xen Orchestra docs', 'docs.xcp-ng.org': 'XCP-ng docs',
+                 'xcp-ng.org': 'XCP-ng forum/blog'}.get(host, host)
+        if host == 'xcp-ng.org' and '/forum/' not in aid:
+            label = 'XCP-ng site'
+        return dict(id=aid, title=a['title'], url=aid, label=label, seen=a.get('seen', ''))
+    return dict(id=aid.replace('legacy:', 'legacy '), title=a['title'], url=article_url(aid), label='KB ' + aid.replace('legacy:', 'legacy '), seen=a.get('seen', ''))
+
+
+def _vendor(rule_id):
+    from .rules import BY_ID
+    return 'Vates/XCP-ng' if BY_ID.get(rule_id, {}).get('product') in ('xcpng', 'xo') else 'Broadcom'
 
 
 def _entry_out(e, precision):
     return dict(topic=e['topic'], precision=precision, cause=e.get('cause', ''), resolution=e.get('resolution', []),
                 notes=e.get('notes', ''), basis=e.get('basis', 'summary'),
-                articles=[dict(id=a['id'].replace('legacy:', 'legacy '), title=a['title'], url=article_url(a['id'])) for a in e['articles']])
+                articles=[_art(a) for a in e['articles']])
 
 
 def _template_entries(rule_id, text):
@@ -67,7 +89,7 @@ def _template_entries(rule_id, text):
             continue
         out.append(dict(topic='Resolved-case template %s: %s' % (t['id'], t['title']), precision='case-template', cause=t.get('cause', ''),
                         resolution=t.get('resolution', []), notes=t.get('notes', ''), basis='case',
-                        articles=[dict(id=k['id'].replace('legacy:', 'legacy '), title=k['title'], url=article_url(k['id'])) for k in t.get('kb', []) if k.get('role') != 'noise'],
+                        articles=[_art(k) for k in t.get('kb', []) if k.get('role') != 'noise'],
                         template=t['id'], evidence=t.get('evidence', '')))
     return out
 
@@ -75,7 +97,8 @@ def _template_entries(rule_id, text):
 def research(rule_id, text, search_phrase=None, report_kb=None, kind='rule'):
     """Return {'status': 'found'|'none', 'entries': [...], 'more': n, 'searched': phrase, 'message': str}."""
     lib = _load()
-    base = dict(library_date=lib['researched'], searched=search_phrase or '')
+    vendor = _vendor(rule_id) if rule_id else 'Broadcom'
+    base = dict(library_date=lib['researched'], searched=search_phrase or '', vendor=vendor)
     if kind == 'report':
         kbs = [k for k in re.findall(r'\d{3,}', str(report_kb or ''))]
         if kbs:
@@ -98,7 +121,9 @@ def research(rule_id, text, search_phrase=None, report_kb=None, kind='rule'):
     ents = tmpl + [x for _p, x in sorted(hit, key=lambda t: -t[0])] + [x for _p, x in sorted(general, key=lambda t: -t[0])]
     if not ents:
         return dict(base, status='none', entries=[], more=0,
-                    message='No Broadcom KB found in the LogLens KB library for this finding (researched %s).' % lib['researched'])
+                    message=('No Broadcom KB found in the LogLens KB library for this finding (researched %s).' % lib['researched']) if vendor == 'Broadcom' else
+                    'No Vates/XCP-ng article found in the LogLens KB library for this finding (researched %s, search summaries only).' % lib.get('vates_researched', lib['researched']))
     return dict(base, status='found', entries=ents[:MAX_SHOWN], more=max(0, len(ents) - MAX_SHOWN),
                 message=('Matched from the LogLens KB library and anonymised resolved-case templates (research snapshot %s, not a live search).' if tmpl else
-                         'Matched from the LogLens KB library (research snapshot %s, not a live search).') % lib['researched'])
+                         'Matched from the LogLens KB library (research snapshot %s, not a live search).') % (lib['researched'] if vendor == 'Broadcom' else lib.get('vates_researched', lib['researched']))
+                + ('' if vendor == 'Broadcom' else ' Vates/XCP-ng entries come from search-result summaries only; the article text was not read.'))

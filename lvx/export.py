@@ -12,13 +12,13 @@ def _kb_md(r, indent='- '):
     if not r:
         return []
     if r['status'] == 'none':
-        L = [indent + '**Broadcom KB research:** %s' % r['message']]
+        L = [indent + '**%s KB research:** %s' % (r.get('vendor', 'Broadcom'), r['message'])]
         if r.get('searched'):
             L.append('  - Manual search phrase: `%s`' % r['searched'])
         return L
-    L = [indent + '**Broadcom KB research** (%s)' % r['message']]
+    L = [indent + '**%s KB research** (%s)' % (r.get('vendor', 'Broadcom'), r['message'])]
     for en in r['entries']:
-        arts = '; '.join('[KB %s](%s) %s' % (a['id'], a['url'], a['title']) for a in en['articles'][:4])
+        arts = '; '.join('[%s](%s) %s%s' % (a.get('label', 'KB ' + a['id']), a['url'], a['title'], (' (seen %s)' % a['seen']) if a.get('seen') else '') for a in en['articles'][:4])
         L.append('  - **%s**%s: %s' % (en['topic'], (' _(related, matched by rule only)_' if en['precision'] == 'general' else ' _(from a resolved support case, anonymised)_' if en['precision'] == 'case-template' else ''), arts))
         if en.get('cause'):
             L.append('    - Cause: %s' % en['cause'])
@@ -39,11 +39,11 @@ def _kb_html(r):
         return ''
     e = html.escape
     if r['status'] == 'none':
-        return '<div class="kb"><b>Broadcom KB research:</b> %s%s</div>' % (e(r['message']), ' Manual search phrase: <code>%s</code>' % e(r['searched']) if r.get('searched') else '')
-    h = ['<div class="kb"><b>Broadcom KB research</b> <small>(%s)</small>' % e(r['message'])]
+        return '<div class="kb"><b>%s KB research:</b> %s%s</div>' % (e(r.get('vendor', 'Broadcom')), e(r['message']), ' Manual search phrase: <code>%s</code>' % e(r['searched']) if r.get('searched') else '')
+    h = ['<div class="kb"><b>%s KB research</b> <small>(%s)</small>' % (e(r.get('vendor', 'Broadcom')), e(r['message']))]
     for en in r['entries']:
         h.append('<div><b>%s</b>%s: %s' % (e(en['topic']), (' <i>(related, matched by rule only)</i>' if en['precision'] == 'general' else ' <i>(from a resolved support case, anonymised)</i>' if en['precision'] == 'case-template' else ''),
-                                          '; '.join('<a href="%s">KB %s</a> %s' % (e(a['url']), e(a['id']), e(a['title'])) for a in en['articles'][:4])))
+                                          '; '.join('<a href="%s">%s</a> %s%s' % (e(a['url']), e(a.get('label', 'KB ' + a['id'])), e(a['title']), (' <small>(seen %s)</small>' % e(a['seen'])) if a.get('seen') else '') for a in en['articles'][:4])))
         if en.get('cause'):
             h.append('<br>Cause: %s' % e(en['cause']))
         if en.get('resolution'):
@@ -57,7 +57,8 @@ def _kb_html(r):
     return ''.join(h)
 
 
-KB_FOOTER = ('KB research is matched from the LogLens KB library, a dated snapshot of Broadcom knowledge-base research '
+KB_FOOTER = ('KB research is matched from the LogLens KB library, a dated snapshot of Broadcom knowledge-base research and, for XCP-ng / Xen Orchestra findings, '
+             'of public Vates docs/forum/GitHub search results '
              '(summaries, not article text; not a live search). Open each article and confirm it applies to your exact build before acting.')
 
 

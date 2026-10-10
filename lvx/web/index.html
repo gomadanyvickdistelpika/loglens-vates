@@ -75,7 +75,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
 
   <h2>2. Describe the issue</h2>
   <label for="issue">Customer symptom (drives ranking)</label>
-  <textarea id="issue" placeholder="e.g. Datastore went offline and VMs froze, around 14:30 UTC"></textarea>
+  <textarea id="issue" placeholder="e.g. Datastore went offline and VMs froze, around 14:30 UTC  |  XCP-ng: SR full, VM will not start  |  XO: backup fails with VDI_IO_ERROR"></textarea>
   <label for="itime">Incident time (UTC unless a zone is given)</label>
   <input type="text" id="itime" placeholder="2026-09-27T14:30:00Z  (blank = newest log time)">
   <div class="row">
@@ -157,11 +157,11 @@ const LOGISH = /\.(log|out|err|all|txt)(\.\d+)?(\.gz)?$|messages|syslog|vmkernel
 
 function kbBlock(r) {
   if (!r) return '';
-  if (r.status === 'none') return '<div class="kbx none"><b>Broadcom KB research:</b> ' + esc(r.message) + (r.searched ? ' <span class="meta">Manual search phrase: <code>' + esc(r.searched) + '</code></span>' : '') + '</div>';
-  let h = '<div class="kbx"><b>Broadcom KB research</b> <span class="meta">' + esc(r.message) + '</span>';
+  if (r.status === 'none') return '<div class="kbx none"><b>' + esc(r.vendor || 'Broadcom') + ' KB research:</b> ' + esc(r.message) + (r.searched ? ' <span class="meta">Manual search phrase: <code>' + esc(r.searched) + '</code></span>' : '') + '</div>';
+  let h = '<div class="kbx"><b>' + esc(r.vendor || 'Broadcom') + ' KB research</b> <span class="meta">' + esc(r.message) + '</span>';
   r.entries.forEach(en => {
     h += '<div class="kbe"><b>' + esc(en.topic) + '</b>' + (en.precision === 'general' ? ' <span class="meta">(related - matched by rule only)</span>' : en.precision === 'case-template' ? ' <span class="badge hi">from a resolved support case (anonymised)</span>' : '') + '<div>'
-      + (en.articles.length ? en.articles : []).slice(0, 6).map(a => '<a class="lnk" target="_blank" rel="noopener" href="' + esc(a.url) + '">KB ' + esc(a.id) + '</a> ' + esc(a.title)).join('<br>') + (en.articles.length ? '' : '<span class="meta">No Broadcom KB was cited in the case.</span>') + '</div>';
+      + (en.articles.length ? en.articles : []).slice(0, 6).map(a => '<a class="lnk" target="_blank" rel="noopener" href="' + esc(a.url) + '">' + esc(a.label || ('KB ' + a.id)) + '</a> ' + esc(a.title) + (a.seen ? ' <span class="meta">(seen ' + esc(a.seen) + ')</span>' : '')).join('<br>') + (en.articles.length ? '' : '<span class="meta">No KB/article was cited in the case.</span>') + '</div>';
     if (en.cause) h += '<div class="meta">Cause: ' + esc(en.cause) + '</div>';
     h += en.resolution.length ? '<div><b>Resolution</b><ol>' + en.resolution.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol></div>'
       : '<div class="meta">Resolution not captured in the research summary - open the article.</div>';
@@ -221,7 +221,7 @@ function renderFind() {
   });
   if ((r.advisories || []).length) { h += '<details><summary class="meta">' + r.advisories.length + ' informational advisor' + (r.advisories.length > 1 ? 'ies' : 'y') + ' (always-on, not ranked)</summary>'
     + r.advisories.map(a => '<div class="meta">' + esc(a.title) + (a.kb ? ' (KB ' + esc(a.kb) + ')' : '') + ' - ' + a.count.toLocaleString() + 'x. ' + esc(a.advice || '') + '</div>').join('') + '</details>'; }
-  if (r.kb_library) h += '<div class="meta" style="margin:10px 0">KB research comes from the LogLens KB library - a dated snapshot (' + esc(r.kb_library.researched) + ', ' + r.kb_library.entries + ' topics) of Broadcom knowledge-base research, summaries not article text, not a live search. Open each article and confirm it applies to your build before acting.</div>';
+  if (r.kb_library) h += '<div class="meta" style="margin:10px 0">KB research comes from the LogLens KB library - a dated snapshot (Broadcom ' + esc(r.kb_library.researched) + (r.kb_library.vates_researched ? '; Vates/XCP-ng public pages ' + esc(r.kb_library.vates_researched) : '') + ', ' + r.kb_library.entries + ' topics) of knowledge-base research, summaries not article text, not a live search. Open each article and confirm it applies to your build before acting.</div>';
   if (r.report_findings.length) { h += '<h2>From GSS Toolbox / TDLog reports</h2>';
     r.report_findings.forEach(f => { h += '<div class="card ' + (f.stale ? 'stale ' : '') + esc(f.severity) + '"><b>[' + esc(f.source) + '] ' + esc(f.title) + '</b>' + (f.kb ? '<span class="badge">KB ' + esc(f.kb) + '</span>' : '')
       + (f.stale ? '<span class="badge">stale - outside window</span>' : '<span class="badge">score ' + f.score + '</span>') + (f.advice ? '<div class="meta">' + esc(f.advice) + '</div>' : '') + kbBlock(f.kb_research) + '</div>'; }); }

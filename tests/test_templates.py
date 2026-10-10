@@ -17,7 +17,7 @@ TPL_PATH = os.path.join(HERE, '..', 'lvx', 'case_templates.json')
 ALLOWED_EMAIL = re.compile(r'@(?:[\w.-]+\.example|vsphere\.local)$', re.I)
 OK_IP = re.compile(r'^(?:192\.0\.2\.|198\.51\.100\.|203\.0\.113\.|127\.0\.0\.1$)')
 REAL_TLD = re.compile(r'\b[\w-]+(?:\.[\w-]+)*\.(?:fr|de|nl|se|uk|cz|org|net|es|pt|tr|tz|br|gov|co|ie|it|ch|at|be|dk|pl)\b', re.I)
-PUBLIC_OK = ('broadcom.com', 'vmware.com', 'dell.com', 'vsphere.local', 'lab.example')
+PUBLIC_OK = ('broadcom.com', 'vmware.com', 'dell.com', 'vsphere.local', 'lab.example', 'xcp-ng.org', 'xen-orchestra.com', 'nodejs.org')
 
 
 class TemplateSchema(unittest.TestCase):
@@ -45,7 +45,7 @@ class TemplateSchema(unittest.TestCase):
                 self.assertEqual(x['lines'], [], x['id'])
             for k in x['kb']:
                 self.assertTrue(k['id'] and k['title'] and k['role'], x['id'])
-                self.assertRegex(kb.article_url(k['id']), r'^https://knowledge\.broadcom\.com/external/article(/\d+|\?legacyId=\d+)$')
+                self.assertRegex(kb.article_url(k['id']), r'^https://(?:knowledge\.broadcom\.com/external/article(/\d+|\?legacyId=\d+)$|(?:docs\.)?(?:xcp-ng\.org|xen-orchestra\.com|docs\.xen-orchestra\.com|github\.com)/)')
 
     def test_no_resolution_invented(self):
         # a template with no cause AND no resolution must say nothing rather than guess

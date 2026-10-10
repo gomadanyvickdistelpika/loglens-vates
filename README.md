@@ -1,4 +1,4 @@
-# LogLens - targeted VMware log analysis
+# LogLens - targeted VMware and Vates (XCP-ng / Xen Orchestra) log analysis
 
 Same job as the Lumberjack Log Viewer + TDLog + GSS Toolbox workflow, but **driven by the customer's
 issue and timestamp**: everything outside the incident window is treated as noise and findings are
@@ -45,9 +45,26 @@ resolution steps. If nothing in the library matches, the report says so plainly 
 - Add or override entries with your own file: `LVX_KB_FILE=/path/extra.json` (same schema; a broken file is ignored).
 - Regenerate the shipped library with `python tools/build_kb_library.py` after editing it.
 
+## Vates products: XCP-ng and Xen Orchestra (XO)
+
+LogLens also recognises **XCP-ng hosts** (product `xcpng`) and **Xen Orchestra** (product `xo`), the same way it separates `esxi` / `vcenter`:
+* **Files:** `xensource.log`, `SMlog` (+ rotated/`.gz`), `xha.log`, `xen/hypervisor.log`, xenopsd, and generic `daemon.log` / `kern.log` / `messages`
+  inside an XCP-ng bundle (xen-bugtool style); XO journalctl text, `xo-server` logs, `xoa-updater` and installer logs. Year-less syslog lines take the incident's year.
+* **16 rules** (`xcp.*`): dom0 disk full, xapi/toolstack down, update/RPU failure, pool master unreachable, HA self-fence, SR full, coalesce stuck,
+  VDI chain too long (SR_BACKEND_FAILURE_109), SR/PBD unplugged (iSCSI/NFS), not enough memory, VM start failure, migration failure,
+  XO backup failure (VDI_IO_ERROR), XO TLS/self-signed certificate, XO from-sources build, XOA updater. Ranking knows root vs symptom
+  (SR full -> coalesce stuck -> chain too long / VM fails to start; disk full -> xapi down; HA fence -> master unreachable).
+* **VMware behaviour is unchanged.** In a Vates-only bundle the VMware-flavoured shared rules are switched off (only NTP, DNS and certificate stay).
+* **KB research:** `lvx/kb_library.json` also holds Vates/XCP-ng/XO pages (title + URL + the date they appeared in a web search). Only **search-result summaries**
+  were used - **the article text could not be read**, so causes/resolutions are what the summary said; forum threads are community advice, not official guidance.
+  Findings from these rules are labelled *Vates/XCP-ng KB research*; with nothing matching they say so.
+* **Synthetic scenarios CT-50..CT-62** (`python -m lvx templates list`), anonymised (`lab.example`, `192.0.2.x`), each marked
+  *SYNTHETIC SCENARIO built from public Vates forum/docs search summaries, not a resolved support case*. Log wording is approximated from error names
+  and phrases in those summaries, not copied from real logs. Build one: `python -m lvx templates build CT-53 OUT` then upload `OUT/CT-53.tgz`.
+
 ## Resolved-case templates
 
-`lvx/case_templates.json` holds 26 **anonymised templates** distilled from 31 resolved support-case reports: the symptom in generic wording,
+`lvx/case_templates.json` holds anonymised templates (CT-01..CT-36 distilled from resolved support-case reports; CT-37..CT-49 VMware and CT-50..CT-62 Vates scenarios built from public summaries): the symptom in generic wording,
 a **synthetic** log excerpt, the detections LogLens must raise, the cause and resolution the case documented, and the Broadcom KB links the case cited.
 When a finding matches a template, its resolution and KB links appear in the finding's "Broadcom KB research" block, labelled
 *from a resolved support case (anonymised)*. If the case documented no resolution or cited no KB, the template says so.
@@ -65,7 +82,7 @@ with path-traversal/symlink protection and size caps, and deleted when the bundl
 Nothing is sent to any external service.
 
 ## Tests
-`python tests/test_all.py` (unit + HTTP API + your real Toolbox/TDLog samples when present) and
+`python tests/test_vates.py` (XCP-ng/XO detection, rules, ranking, KB honesty, scenarios), `python tests/test_all.py` (unit + HTTP API + your real Toolbox/TDLog samples when present) and
 `python tests/accuracy.py` (synthetic bundles with planted incidents, decoys outside the window and noise,
 across dir/zip/tgz/nested-archive formats; passes at >= 95%).
 
@@ -74,4 +91,5 @@ across dir/zip/tgz/nested-archive formats; passes at >= 95%).
 * Signature rules are my own generic patterns, not Broadcom's. KB numbers are shown only where they came from your
   sample reports (80867, 78543); other findings carry a KB *search phrase* instead of a guess.
 * Accuracy numbers come from synthetic bundles; validate on real, sanitised bundles and send me misses.
+* Vates rules are generic patterns from public error names; the synthetic XCP-ng/XO log lines are approximations. Accuracy on them is in-sample (rules and scenarios were written together), so it shows the plumbing works, not real-world recall: validate on real, sanitised XCP-ng/XO logs.
 * Syslog-style lines without a year assume the year of the newest log. Naive times are UTC.

@@ -44,7 +44,7 @@ def normalise(line):
 
 # ----------------------------------------------------------------------------- issue topics
 TOPIC_WORDS = {
-    'storage': 'storage datastore disk lun scsi apd pdl vmfs san hba latency nfs iscsi multipath io slow volume paths datastores',
+    'storage': 'storage datastore disk lun scsi apd pdl vmfs san hba latency nfs iscsi multipath io slow volume paths datastores sr coalesce vdi pbd repository',
     'network': 'network nic vmnic link switch vlan mtu uplink packet ping connectivity vds dvs vmkernel',
     'host-connection': 'disconnect disconnected disconnects unresponsive responding "not responding" unreachable connection',
     'crash': 'crash crashed crashes psod purple panic reboot rebooted restart restarted core dump unexpected',
@@ -52,17 +52,17 @@ TOPIC_WORDS = {
     'auth': 'login log-in logon sso sts authentication authenticate password credentials ldap active-directory ad domain token saml access',
     'certificate': 'certificate cert certs expired expiry ssl tls trust',
     'database': 'database db postgres vpostgres vcdb sql',
-    'ha': 'ha fdm isolation isolated failover cluster drs partition',
+    'ha': 'ha fdm isolation isolated failover cluster drs partition fence fenced fencing xha pool master coordinator',
     'vsan': 'vsan congestion',
     'memory': 'memory oom heap swap ballooning',
     'time': 'time ntp clock drift sync',
     'vm': 'vm vms virtual guest poweron power-on snapshot clone vmotion migrate migration backup consolidation deploy',
-    'services': 'service services vpxd hostd vpxa 503 upstream unavailable start started stop stopped vmon ui client',
-    'upgrade': 'upgrade update patch patching stage install installation',
+    'services': 'service services vpxd hostd vpxa 503 upstream unavailable start started stop stopped vmon ui client xapi toolstack xo-server',
+    'upgrade': 'upgrade update patch patching stage install installation rpu yum xoa build',
     'dns': 'dns resolve resolution fqdn hostname',
     'disk-space': 'space full disk-full partition log-partition inode',
     'performance': 'slow slowness performance latency lag hang hung timeout',
-    'backup': 'backup snapshot veeam consolidation',
+    'backup': 'backup snapshot veeam consolidation delta replication',
 }
 STOP = set('the and for with from that this have has was were are not but when after before into than then them they their our out all any can could would should been being there here more some very just also over under about while which what who how why does did done'.split())
 
@@ -85,7 +85,7 @@ def issue_topics(issue):
 
 
 # ----------------------------------------------------------------------------- file selection
-_LOGNAME = re.compile(r'(?:\.(?:log|out|err|all|txt)(?:\.\d+)?|\.log\.\d+|messages(?:-\d+)?|syslog(?:\.\d+)?|vmkernel|hostd|vpxa|fdm|vobd|vmkwarning)(?:\.gz)?$', re.I)
+_LOGNAME = re.compile(r'(?:\.(?:log|out|err|all|txt)(?:\.\d+)?|\.log\.\d+|messages(?:-\d+)?|syslog(?:\.\d+)?|vmkernel|hostd|vpxa|fdm|vobd|vmkwarning|smlog(?:\.\d+)?)(?:\.gz)?$', re.I)
 _SKIP_DIR = re.compile(r'(?:^|/)(?:commands|etc|proc|sys|usr|lib|bin|sbin|tdlog/cert|reconciled|python|configuration|schema)(?:/|$)', re.I)
 _SKIP_NAME = re.compile(r'(?:gsstoolbox|toolbox-results|td[ _-]?log[ _-]?report)', re.I)
 
@@ -100,8 +100,18 @@ def is_log_candidate(rel):
     return bool(_LOGNAME.search(base))
 
 
+_XCP_RX = re.compile(r'xensource|smlog|xapi|xenopsd|xha(?:\.|-|/)|xcp-ng|xcpng|(?:^|/)xen/(?:hypervisor|xenstored)|xen-bugtool|squeezed')
+_XO_RX = re.compile(r'xo-server|xo-web|xo-proxy|xen-?orchestra|xoa(?:-|\.|_|/)|xo_server|journalctl|xo-install|yarn')
+VATES = ('xcpng', 'xo')
+VATES_SHARED = ('esx.ntp', 'esx.dns', 'esx.cert')      # generic 'both' rules that also make sense for XCP-ng / XO
+
+
 def classify_product(rel):
     low = rel.lower()
+    if _XCP_RX.search(low):
+        return 'xcpng'
+    if _XO_RX.search(low):
+        return 'xo'
     if re.search(r'vmkernel|vmkwarning|hostd|vpxa|fdm|vobd|esxupdate|storagerm|hostprofile|/var/run/log|nfcd|vmware\.log|shell\.log|vmksummary', low):
         return 'esxi'
     if re.search(r'vpxd|vmware-vpx|vmware-sso|vmdird|vsphere-ui|vmon|postgres|vmware-sts|sts/|lookupsvc|vapi|vpxd-svcs|envoy|rhttpproxy|vsan-health|eam|content-library|certificate-manager|vmafdd|vmcad', low):
@@ -182,7 +192,11 @@ class Analyzer:
     # ---- scan helpers
     def _applicable(self, products):
         out = []
+        if products & set(VATES):
+            products = products | set(VATES)      # XO reports xapi/SR errors and hosts log XO-visible failures: one Vates family
         for r in self.rules:
+            if r['product'] == 'both' and getattr(self, 'vates_only', False) and r['id'] not in VATES_SHARED:
+                continue                      # VMware-flavoured shared rules (snapshot consolidation, HA agent...) are noise on XCP-ng/XO
             if r['product'] == 'both' or r['product'] in products or 'unknown' in products:
                 out.append(r)
         return out
@@ -199,21 +213,28 @@ class Analyzer:
         products = Counter(classify_product(e['path']) for e in cand)
         prod_set = set(p for p in products if p != 'unknown')
         self.products = sorted(prod_set) or ['unknown']
+        self.vates_only = bool(prod_set) and prod_set <= set(VATES)
 
         # reference year + auto anchor from file tails
         tails = []
         for e in cand:
             if not e['path'].lower().endswith('.gz'):
-                ts = tail_ts(self.bundle.resolve(e['path']), 2000)
+                ts = tail_ts(self.bundle.resolve(e['path']), None)      # ISO-only tails are reliable for year inference
                 if ts:
                     tails.append(ts)
-        # ISO-only tails are reliable for year inference
         now_year = time.gmtime().tm_year
-        ref_year = time.gmtime(max(tails)).tm_year if tails else now_year
+        if tails:
+            ref_year = time.gmtime(max(tails)).tm_year
+        elif self.anchor_user:
+            ref_year = time.gmtime(self.anchor_user).tm_year      # syslog-only bundles (XCP-ng): year-less lines take the incident's year
+        else:
+            ref_year = now_year
         tails = []
         for e in cand:
             if not e['path'].lower().endswith('.gz'):
                 ts = tail_ts(self.bundle.resolve(e['path']), ref_year)
+                if ts and ts > time.time() + 86400 and not self.anchor_user:
+                    ts = tail_ts(self.bundle.resolve(e['path']), ref_year - 1) or ts      # year-less December log read in January
                 if ts:
                     tails.append(ts)
         tails.sort()
@@ -236,7 +257,10 @@ class Analyzer:
         for i, e in enumerate(cand):
             self.progress(i / max(n, 1) * 0.9, 'Scanning %s' % e['path'])
             try:
-                self._scan(e['path'], self._applicable({classify_product(e['path'])} | prod_set))
+                fp = classify_product(e['path'])
+                if fp == 'unknown' and prod_set and prod_set <= set(VATES):
+                    fp = None                # generic Linux logs (daemon.log, messages, kern.log) inside a Vates bundle
+                self._scan(e['path'], self._applicable(({fp} if fp else set()) | prod_set))
             except Exception as ex:   # never let one bad file abort the case
                 self.skipped.append((e['path'], 'error: %s' % ex))
         reps = []
@@ -500,14 +524,15 @@ class Analyzer:
     def _link_symptoms(items):
         """A downstream symptom (503, service down) that starts shortly AFTER a stronger cause ranks just below it."""
         by_id = {r['id']: r for r in R}
-        for d in items:                       # early warning that explains a later failure ranks above it
-            rf = by_id.get(d['id'], {}).get('root_for') if d['kind'] == 'rule' else None
-            if rf and d['_first']:
-                later = [t for t in items if t['kind'] == 'rule' and t['id'] in rf and t['_first'] > d['_first']]
-                if later:
-                    t = max(later, key=lambda t: t['score'])
-                    d['score'] = round(max(d['score'], t['score'] + 1.5), 1)
-                    d['root_of'] = t['title']
+        for _pass in range(3):                # chains (SR full -> coalesce stuck -> VM fails) settle in a few passes
+            for d in items:                   # early warning that explains a later failure ranks above it
+                rf = by_id.get(d['id'], {}).get('root_for') if d['kind'] == 'rule' else None
+                if rf and d['_first']:
+                    later = [t for t in items if t['kind'] == 'rule' and t['id'] in rf and t['_first'] > d['_first']]
+                    if later:
+                        t = max(later, key=lambda t: t['score'])
+                        d['score'] = round(max(d['score'], t['score'] + 1.5), 1)
+                        d['root_of'] = t['title']
         causes = [d for d in items if d['kind'] == 'rule' and not by_id.get(d['id'], {}).get('symptom')
                   and d['severity'] in ('critical', 'high') and d['score'] >= 40 and not d['chronic'] and d['_first']]
         for s in items:
