@@ -1,4 +1,4 @@
-"""Fast timestamp extraction for ESXi / vCenter log lines."""
+"""Fast timestamp extraction for XCP-ng / Xen Orchestra log lines."""
 import re
 from calendar import timegm
 from datetime import datetime, timezone

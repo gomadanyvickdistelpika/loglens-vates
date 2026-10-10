@@ -14,10 +14,10 @@ from lvx.rules import BY_ID              # noqa: E402
 import templates_accuracy                # noqa: E402
 
 TPL_PATH = os.path.join(HERE, '..', 'lvx', 'case_templates.json')
-ALLOWED_EMAIL = re.compile(r'@(?:[\w.-]+\.example|vsphere\.local)$', re.I)
+ALLOWED_EMAIL = re.compile(r'@[\w.-]+\.example$', re.I)
 OK_IP = re.compile(r'^(?:192\.0\.2\.|198\.51\.100\.|203\.0\.113\.|127\.0\.0\.1$)')
 REAL_TLD = re.compile(r'\b[\w-]+(?:\.[\w-]+)*\.(?:fr|de|nl|se|uk|cz|org|net|es|pt|tr|tz|br|gov|co|ie|it|ch|at|be|dk|pl)\b', re.I)
-PUBLIC_OK = ('broadcom.com', 'vmware.com', 'dell.com', 'vsphere.local', 'lab.example', 'xcp-ng.org', 'xen-orchestra.com', 'nodejs.org')
+PUBLIC_OK = ('lab.example', 'xcp-ng.org', 'xen-orchestra.com', 'nodejs.org')
 
 
 class TemplateSchema(unittest.TestCase):
@@ -25,7 +25,7 @@ class TemplateSchema(unittest.TestCase):
         self.t = templates.all_templates()
 
     def test_count_and_ids(self):
-        self.assertGreaterEqual(len(self.t), 25)
+        self.assertGreaterEqual(len(self.t), 14)
         ids = [x['id'] for x in self.t]
         self.assertEqual(len(ids), len(set(ids)))
 
@@ -45,7 +45,8 @@ class TemplateSchema(unittest.TestCase):
                 self.assertEqual(x['lines'], [], x['id'])
             for k in x['kb']:
                 self.assertTrue(k['id'] and k['title'] and k['role'], x['id'])
-                self.assertRegex(kb.article_url(k['id']), r'^https://(?:knowledge\.broadcom\.com/external/article(/\d+|\?legacyId=\d+)$|(?:docs\.)?(?:xcp-ng\.org|xen-orchestra\.com|docs\.xen-orchestra\.com|github\.com)/)')
+                self.assertRegex(kb.article_url(k['id']), r'^https://(?:docs\.)?(?:xcp-ng\.org|xen-orchestra\.com|docs\.xen-orchestra\.com|github\.com)/')
+                self.assertRegex(k.get('seen', ''), r'^\d{4}-\d\d-\d\d$')
 
     def test_no_resolution_invented(self):
         # a template with no cause AND no resolution must say nothing rather than guess
@@ -89,31 +90,24 @@ class TemplateDetection(unittest.TestCase):
         import shutil
         a, b = tempfile.mkdtemp(), tempfile.mkdtemp()
         try:
-            templates.build_bundle('CT-13', a)
-            templates.build_bundle('CT-13', b)
-            fa = sorted(os.listdir(os.path.join(a, 'var/log/vmware/vpxd')))
-            self.assertEqual(fa, sorted(os.listdir(os.path.join(b, 'var/log/vmware/vpxd'))))
-            with open(os.path.join(a, 'var/log/vmware/vpxd/vpxd-1.log')) as f1, open(os.path.join(b, 'var/log/vmware/vpxd/vpxd-1.log')) as f2:
-                self.assertEqual(f1.read(), f2.read())
-            self.assertIn('missing heartbeats', open(os.path.join(a, 'var/log/vmware/vpxd/vpxd-1.log')).read())
-            with self.assertRaises(ValueError):
-                templates.build_bundle('CT-03', tempfile.mkdtemp())
+            templates.build_bundle('CT-53', a)
+            templates.build_bundle('CT-53', b)
+            self.assertEqual(sorted(os.listdir(os.path.join(a, 'var/log'))), sorted(os.listdir(os.path.join(b, 'var/log'))))
+            with open(os.path.join(a, 'var/log/SMlog')) as f1, open(os.path.join(b, 'var/log/SMlog')) as f2:
+                t1 = f1.read()
+                self.assertEqual(t1, f2.read())
+            self.assertIn('Insufficient space', t1)
         finally:
             shutil.rmtree(a, ignore_errors=True)
             shutil.rmtree(b, ignore_errors=True)
 
     def test_template_resolution_and_kb_attached(self):
-        r = kb.research('vc.ldaps', "Server SSL certificate verification failed SHA1 Fingerprint Signature does not match")
+        r = kb.research('xcp.sr_full', "Insufficient space on SR SR_BACKEND_FAILURE_44 coalesce")
         e = r['entries'][0]
         self.assertEqual(e['precision'], 'case-template')
+        self.assertTrue(e['synthetic'])
         self.assertTrue(e['resolution'])
-        self.assertIn('313460', [a['id'] for a in e['articles']])
-
-    def test_no_kb_cited_is_stated(self):
-        r = kb.research('esx.heap_admission', 'Admission failure in path: host:system:net:heap:vmxnet3TxdHeap')
-        t = [e for e in r['entries'] if e['precision'] == 'case-template'][0]
-        self.assertEqual(t['articles'], [])
-        self.assertEqual(t['resolution'], [])
+        self.assertTrue(all(a['url'].startswith('https://') and a['seen'] for a in e['articles']))
 
 
 if __name__ == '__main__':

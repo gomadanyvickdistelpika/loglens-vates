@@ -47,34 +47,10 @@ class Detection(unittest.TestCase):
             self.assertEqual(classify_product(p), 'xo', p)
             self.assertTrue(is_log_candidate(p), p)
 
-    def test_vmware_classification_unchanged(self):
-        self.assertEqual(classify_product('var/run/log/vmkernel.log'), 'esxi')
-        self.assertEqual(classify_product('var/run/log/hostd.log'), 'esxi')
-        self.assertEqual(classify_product('var/log/vmware/vpxd/vpxd-1.log'), 'vcenter')
-        self.assertEqual(classify_product('var/log/vmware/sts/sts-runtime.log'), 'vcenter')
-        self.assertEqual(classify_product('var/log/messages'), 'unknown')
-
     def test_bundle_products(self):
         self.assertEqual(analyse('CT-50')['products'], ['xcpng'])
         self.assertEqual(analyse('CT-60')['products'], ['xo'])
         self.assertEqual(analyse('CT-54')['products'], ['xcpng', 'xo'])
-
-    def test_vmware_rules_do_not_fire_on_vates_only_bundle(self):
-        ids = {f['id'] for f in analyse('CT-53')['findings']}
-        self.assertFalse({i for i in ids if i.startswith(('esx.psod', 'esx.snapshot', 'vc.'))}, ids)
-
-    def test_xcp_rules_do_not_fire_on_vmware_bundle(self):
-        d = tempfile.mkdtemp(prefix='lvx_vt_')
-        try:
-            m = templates.build_bundle('CT-13', d)
-            b = open_bundle('t', d)
-            try:
-                res = Analyzer(b, issue=m['issue'], anchor=m['anchor']).run()
-            finally:
-                b.close()
-            self.assertFalse([f['id'] for f in res['findings'] if f['id'].startswith('xcp.')])
-        finally:
-            shutil.rmtree(d, ignore_errors=True)
 
     def test_syslog_only_bundle_gets_incident_year(self):
         res = analyse('CT-50')
@@ -162,7 +138,7 @@ class KbHonesty(unittest.TestCase):
 
     def test_summary_only_is_stated(self):
         lib = kb._load()
-        self.assertIn('not read', lib['vates_source'])
+        self.assertIn('not read', lib['source'])
         for f in analyse('CT-53')['findings']:
             if f['id'].startswith('xcp.'):
                 r = f['kb_research']
@@ -180,10 +156,6 @@ class KbHonesty(unittest.TestCase):
         if r['status'] == 'none':
             self.assertIn('No public Vates KB found', r['message'])
 
-    def test_broadcom_wording_unchanged(self):
-        r = kb.research('esx.psod', 'nothing specific', 'x')
-        self.assertEqual(r['vendor'], 'Broadcom')
-        self.assertIn('No Broadcom KB found', r['message'])
 
 
 class Accuracy(unittest.TestCase):

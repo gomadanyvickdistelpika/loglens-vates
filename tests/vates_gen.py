@@ -8,11 +8,12 @@ Each scenario:  (offset seconds from the incident, file, template)   {s}=syslog 
 import gzip
 import os
 import random
+import tarfile
 import time
+import zipfile
+from calendar import timegm
 
-import gen
-
-ANCHOR = gen.ANCHOR
+ANCHOR = timegm((2026, 9, 27, 14, 30, 0))
 SPAN_DAYS = 14
 STEP = 300
 
@@ -435,4 +436,31 @@ def build_dir(dest, scenario, seed=7, anchor=ANCHOR, decoys=True, noisy=False):
     return dict(expect=sc['expect'], issue=sc['issue'], anchor=anchor, min_rank=sc['min_rank'])
 
 
-pack = gen.pack
+def iso(ts, ms=123):
+    return time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime(ts)) + '.%03dZ' % ms
+
+
+def pack(src_dir, out_path, fmt, inner_name='bundle'):
+    """fmt: dir | zip | tgz | nested (tgz inside zip)"""
+    if fmt == 'dir':
+        return src_dir
+    if fmt == 'zip':
+        with zipfile.ZipFile(out_path, 'w', zipfile.ZIP_DEFLATED) as z:
+            for dp, _d, fns in os.walk(src_dir):
+                for fn in fns:
+                    full = os.path.join(dp, fn)
+                    z.write(full, os.path.join(inner_name, os.path.relpath(full, src_dir)))
+        return out_path
+    if fmt == 'tgz':
+        with tarfile.open(out_path, 'w:gz') as t:
+            t.add(src_dir, arcname=inner_name)
+        return out_path
+    if fmt == 'nested':
+        inner = out_path + '.inner.tgz'
+        with tarfile.open(inner, 'w:gz') as t:
+            t.add(src_dir, arcname=inner_name)
+        with zipfile.ZipFile(out_path, 'w', zipfile.ZIP_DEFLATED) as z:
+            z.write(inner, 'support/host-%s.tgz' % inner_name)
+        os.remove(inner)
+        return out_path
+    raise ValueError(fmt)

@@ -1,23 +1,15 @@
-LogLens - Vates (XCP-ng / Xen Orchestra) test kit: 6 synthetic cases
+LogLens Vates - 6 synthetic cases
 ==================================================================
 
-HOW TO TEST
-1. Unzip. Needs Python 3.9+ only (standard library).
-2. cd app ; python -m lvx serve        (Windows: py -m lvx serve)   -> open http://127.0.0.1:8765
-3. Drag a bundle from ../bundles into the page, paste the issue text below, set Incident time = 2026-03-10T10:00:00Z, click Analyze.
-4. On the top finding: click "Show log context" (raw lines around the match), click "open in viewer" (full file at that line),
-   then press Confirm / Reject / Unsure and type a note. Export Markdown/HTML/JSON: the "Reviewer verdict" is in the report.
-   (Verdicts are remembered in this browser per bundle + incident time.)
-
-reports/*.html = reference reports produced by the CLI for the same bundles; screenshots/ = Playwright run of case 4 (viewer + confirm controls).
+Upload a bundle from this folder, paste the issue, set Incident time = 2026-03-10T10:00:00Z, Analyze.
+On the top finding: Show log context, open in viewer, Confirm / Reject / Unsure.
 
 ------------------------------------------------------------------
 CASE 1 - Xen Orchestra backup failure   (template CT-59)
-Bundle : bundles/1-CT-59.tgz
+Bundle : 1-CT-59.tgz
 Issue  : Scheduled delta backups from Xen Orchestra to an NFS remote fail every night with VDI_IO_ERROR (Device I/O errors).
-Time   : 2026-03-10T10:00:00Z
 Expect : rank 1 = "Xen Orchestra backup / replication job failed (VDI_IO_ERROR, snapshot, remote)" (xcp.xo_backup)
-Check  : CT-59/var/log/SMlog line 1  ->  Mar 10 02:15:00 xcp01 SM: [5521] VDI_IO_ERROR: reading the VHD of VM db01 failed
+Check  : CT-59/var/log/SMlog line 1 -> Mar 10 02:15:00 xcp01 SM: [5521] VDI_IO_ERROR: reading the VHD of VM db01 failed
 Public Vates links (title / URL / date seen in search results; summaries only, article text NOT read):
   - Backup troubleshooting - Xen Orchestra docs
     https://xen-orchestra.com/docs/backup_troubleshooting.html  (seen 2026-10-10)
@@ -30,11 +22,10 @@ Public Vates links (title / URL / date seen in search results; summaries only, a
 
 ------------------------------------------------------------------
 CASE 2 - Xen Orchestra cannot connect to a pool   (template CT-60)
-Bundle : bundles/2-CT-60.tgz
+Bundle : 2-CT-60.tgz
 Issue  : After the certificate on the pool master was replaced, Xen Orchestra shows the pool as disconnected with a TLS error.
-Time   : 2026-03-10T10:00:00Z
 Expect : rank 1 = "Xen Orchestra: TLS / self-signed or expired certificate when connecting to a pool or host" (xcp.xo_tls)
-Check  : CT-60/xo/journalctl-xo-server.txt line 2152  ->  Mar 10 09:45:00 xo01 xo-server[771]: 2026-03-10T09:45:11.002Z xo:xo-mixins:xen-servers WARN server 192.0.2.21 
+Check  : CT-60/xo/journalctl-xo-server.txt line 2152 -> Mar 10 09:45:00 xo01 xo-server[771]: 2026-03-10T09:45:11.002Z xo:xo-mixins:xen-servers WARN server 192.0.2.21 
 Public Vates links (title / URL / date seen in search results; summaries only, article text NOT read):
   - Improving security in Xen Orchestra
     https://xen-orchestra.com/blog/improving-security-in-xen-orchestra/  (seen 2026-10-10)
@@ -45,12 +36,10 @@ Public Vates links (title / URL / date seen in search results; summaries only, a
 
 ------------------------------------------------------------------
 CASE 3 - Host / toolstack / disk full   (template CT-50)
-Bundle : bundles/3-CT-50.tgz
+Bundle : 3-CT-50.tgz
 Issue  : Host xcp01 is unreachable in Xen Orchestra. xe commands fail with "Connection refused" and the control-domain disk usage alarm fired earlier.
-Time   : 2026-03-10T10:00:00Z
 Expect : rank 1 = "XCP-ng host: dom0 / or /var/log partition full" (xcp.host_disk_full)
-Check  : CT-50/var/log/messages line 1  ->  Mar 10 08:31:40 xcp01 xcp-ng: Disk Usage for Control Domain on server xcp01.lab.example has reached 98%
-Others : 1. xcp.host_disk_full; 2. xcp.xapi_down
+Check  : CT-50/var/log/messages line 1 -> Mar 10 08:31:40 xcp01 xcp-ng: Disk Usage for Control Domain on server xcp01.lab.example has reached 98%
 Public Vates links (title / URL / date seen in search results; summaries only, article text NOT read):
   - Logs Partition Full
     https://xcp-ng.org/forum/topic/3028/logs-partition-full  (seen 2026-10-10)
@@ -63,12 +52,10 @@ Public Vates links (title / URL / date seen in search results; summaries only, a
 
 ------------------------------------------------------------------
 CASE 4 - Storage repository full / coalesce stuck -> VM will not start   (template CT-53)
-Bundle : bundles/4-CT-53.tgz
+Bundle : 4-CT-53.tgz
 Issue  : A VM will not start after a backup job. The NFS storage repository is almost full and backups began failing earlier this week.
-Time   : 2026-03-10T10:00:00Z
 Expect : rank 1 = "XCP-ng storage: SR full / insufficient space" (xcp.sr_full)
-Check  : CT-53/var/log/SMlog line 2102  ->  Mar 10 08:00:00 xcp01 SM: [21433] Insufficient space on SR 0a1b2c3d-1111-2222-3333-444455556666: SR_BACKEND_FA
-Others : 1. xcp.sr_full; 2. xcp.coalesce_stuck; 3. xcp.sr_chain; 4. xcp.vm_start_fail
+Check  : CT-53/var/log/SMlog line 2102 -> Mar 10 08:00:00 xcp01 SM: [21433] Insufficient space on SR 0a1b2c3d-1111-2222-3333-444455556666: SR_BACKEND_FA
 Public Vates links (title / URL / date seen in search results; summaries only, article text NOT read):
   - Backup troubleshooting - Xen Orchestra docs
     https://xen-orchestra.com/docs/backup_troubleshooting.html  (seen 2026-10-10)
@@ -81,12 +68,10 @@ Public Vates links (title / URL / date seen in search results; summaries only, a
 
 ------------------------------------------------------------------
 CASE 5 - VM will not start (not enough memory)   (template CT-56)
-Bundle : bundles/5-CT-56.tgz
+Bundle : 5-CT-56.tgz
 Issue  : Starting a large VM on host xcp02 from Xen Orchestra fails with a "not enough free memory" error although the host seems to have free RAM.
-Time   : 2026-03-10T10:00:00Z
 Expect : rank 1 = "XCP-ng VM: not enough free host memory (start / migrate / evacuate)" (xcp.vm_no_memory)
-Check  : CT-56/var/log/xensource.log line 2149  ->  Mar 10 09:35:00 xcp02 xapi: [error|xcp02.lab.example|2201 ||xapi] VM.start failed: HOST_NOT_ENOUGH_FREE_MEMORY
-Others : 1. xcp.vm_no_memory; 2. xcp.vm_start_fail
+Check  : CT-56/var/log/xensource.log line 2149 -> Mar 10 09:35:00 xcp02 xapi: [error|xcp02.lab.example|2201 ||xapi] VM.start failed: HOST_NOT_ENOUGH_FREE_MEMORY
 Public Vates links (title / URL / date seen in search results; summaries only, article text NOT read):
   - Not enough server memory when start VM
     https://xcp-ng.org/forum/topic/3991/not-enough-server-memory-when-start-vm  (seen 2026-10-10)
@@ -99,12 +84,10 @@ Public Vates links (title / URL / date seen in search results; summaries only, a
 
 ------------------------------------------------------------------
 CASE 6 - Pool / HA fencing   (template CT-52)
-Bundle : bundles/6-CT-52.tgz
+Bundle : 6-CT-52.tgz
 Issue  : Hosts in an HA-enabled pool rebooted and their VMs were restarted elsewhere. The network team reports a short switch outage on the management VLAN.
-Time   : 2026-03-10T10:00:00Z
 Expect : rank 1 = "XCP-ng HA: host self-fenced / heartbeat or statefile lost" (xcp.ha_fence)
-Check  : CT-52/var/log/xha.log line 1  ->  Mar 10 09:30:00 xcp03 xhad: [warning] heartbeat from host xcp01 lost on the management interface (xha)
-Others : 1. xcp.ha_fence; 2. xcp.master_unreachable
+Check  : CT-52/var/log/xha.log line 1 -> Mar 10 09:30:00 xcp03 xhad: [warning] heartbeat from host xcp01 lost on the management interface (xha)
 Public Vates links (title / URL / date seen in search results; summaries only, article text NOT read):
   - High availability - XCP-ng docs
     https://docs.xcp-ng.org/management/ha/  (seen 2026-10-10)
@@ -116,8 +99,6 @@ Public Vates links (title / URL / date seen in search results; summaries only, a
     https://docs.xcp-ng.org/troubleshooting/troubleshooting-ha/  (seen 2026-10-10)
 
 ------------------------------------------------------------------
-HONEST CAVEATS
-* Everything is SYNTHETIC (lab.example, 192.0.2.x). Not resolved support cases. No customer data.
-* Log wording is approximated from error names in public search summaries, not copied from real logs.
-* KB links were returned by web searches on 2026-10-10; only search summaries were read. Open each page and confirm it fits your version.
-* Accuracy numbers (see README / the report) are IN-SAMPLE: rules and scenarios were written by the same author. Try real, sanitised XCP-ng / XO logs.
+CAVEATS
+* Everything is SYNTHETIC (lab.example, 192.0.2.x); log wording is approximated from public search summaries, not copied from real logs.
+* KB links were returned by web searches on 2026-10-10; only summaries were read. Confirm each page fits your version.

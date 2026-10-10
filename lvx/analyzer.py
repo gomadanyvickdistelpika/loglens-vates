@@ -1,11 +1,11 @@
-"""Targeted analysis: restrict to the incident window, strip noise, rank by issue relevance."""
+"""Targeted analysis: restrict to the incident window, strip noise, rank by issue relevance (XCP-ng / Xen Orchestra)."""
 import math
 import os
 import re
 import time
 from collections import Counter, deque
 
-from . import kb, reports
+from . import kb
 from .bundle import open_text, looks_binary
 from .rules import R
 from .timeparse import parse_ts, fmt_ts
@@ -44,20 +44,18 @@ def normalise(line):
 
 # ----------------------------------------------------------------------------- issue topics
 TOPIC_WORDS = {
-    'storage': 'storage datastore disk lun scsi apd pdl vmfs san hba latency nfs iscsi multipath io slow volume paths datastores sr coalesce vdi pbd repository',
-    'network': 'network nic vmnic link switch vlan mtu uplink packet ping connectivity vds dvs vmkernel',
+    'storage': 'storage disk lun scsi san hba latency nfs iscsi multipath io slow volume sr coalesce vdi pbd repository',
+    'network': 'network nic bond link switch vlan mtu uplink packet ping connectivity',
     'host-connection': 'disconnect disconnected disconnects unresponsive responding "not responding" unreachable connection',
-    'crash': 'crash crashed crashes psod purple panic reboot rebooted restart restarted core dump unexpected',
+    'crash': 'crash crashed crashes panic reboot rebooted restart restarted core dump unexpected',
     'hardware': 'hardware dimm memory ecc cpu firmware bios fan psu power sel mce',
-    'auth': 'login log-in logon sso sts authentication authenticate password credentials ldap active-directory ad domain token saml access',
+    'auth': 'login log-in logon authentication authenticate password credentials ldap active-directory ad domain token access',
     'certificate': 'certificate cert certs expired expiry ssl tls trust',
-    'database': 'database db postgres vpostgres vcdb sql',
-    'ha': 'ha fdm isolation isolated failover cluster drs partition fence fenced fencing xha pool master coordinator',
-    'vsan': 'vsan congestion',
+    'ha': 'ha isolation isolated failover cluster partition fence fenced fencing xha pool master coordinator',
     'memory': 'memory oom heap swap ballooning',
     'time': 'time ntp clock drift sync',
-    'vm': 'vm vms virtual guest poweron power-on snapshot clone vmotion migrate migration backup consolidation deploy',
-    'services': 'service services vpxd hostd vpxa 503 upstream unavailable start started stop stopped vmon ui client xapi toolstack xo-server',
+    'vm': 'vm vms virtual guest power-on snapshot clone migrate migration xenmotion backup deploy',
+    'services': 'service services unavailable start started stop stopped ui client xapi toolstack xo-server',
     'upgrade': 'upgrade update patch patching stage install installation rpu yum xoa build',
     'dns': 'dns resolve resolution fqdn hostname',
     'disk-space': 'space full disk-full partition log-partition inode',
@@ -77,17 +75,16 @@ def issue_topics(issue):
         wl = set(w.strip('"') for w in ws.split())
         if words & wl or t in words:
             topics.add(t)
-    for phrase, t in (('not responding', 'host-connection'), ('no healthy upstream', 'services'),
-                      ('all paths down', 'storage'), ('purple screen', 'crash'), ('log in', 'auth')):
+    for phrase, t in (('not responding', 'host-connection'), ('pool master', 'ha'), ('toolstack', 'services'),
+                      ('self-fence', 'ha'), ('log in', 'auth')):
         if phrase in low:
             topics.add(t)
     return topics, set(w for w in words if len(w) > 3 and w not in STOP)
 
 
 # ----------------------------------------------------------------------------- file selection
-_LOGNAME = re.compile(r'(?:\.(?:log|out|err|all|txt)(?:\.\d+)?|\.log\.\d+|messages(?:-\d+)?|syslog(?:\.\d+)?|vmkernel|hostd|vpxa|fdm|vobd|vmkwarning|smlog(?:\.\d+)?)(?:\.gz)?$', re.I)
+_LOGNAME = re.compile(r'(?:\.(?:log|out|err|all|txt)(?:\.\d+)?|\.log\.\d+|messages(?:-\d+)?|syslog(?:\.\d+)?|smlog(?:\.\d+)?)(?:\.gz)?$', re.I)
 _SKIP_DIR = re.compile(r'(?:^|/)(?:commands|etc|proc|sys|usr|lib|bin|sbin|tdlog/cert|reconciled|python|configuration|schema)(?:/|$)', re.I)
-_SKIP_NAME = re.compile(r'(?:gsstoolbox|toolbox-results|td[ _-]?log[ _-]?report)', re.I)
 
 
 def is_log_candidate(rel):
@@ -95,15 +92,12 @@ def is_log_candidate(rel):
     if _SKIP_DIR.search(low) and '/log' not in low and not low.startswith('var/'):
         return False
     base = os.path.basename(low)
-    if _SKIP_NAME.search(base):
-        return False
     return bool(_LOGNAME.search(base))
 
 
 _XCP_RX = re.compile(r'xensource|smlog|xapi|xenopsd|xha(?:\.|-|/)|xcp-ng|xcpng|(?:^|/)xen/(?:hypervisor|xenstored)|xen-bugtool|squeezed')
 _XO_RX = re.compile(r'xo-server|xo-web|xo-proxy|xen-?orchestra|xoa(?:-|\.|_|/)|xo_server|journalctl|xo-install|yarn')
 VATES = ('xcpng', 'xo')
-VATES_SHARED = ('esx.ntp', 'esx.dns', 'esx.cert')      # generic 'both' rules that also make sense for XCP-ng / XO
 
 
 def classify_product(rel):
@@ -112,10 +106,6 @@ def classify_product(rel):
         return 'xcpng'
     if _XO_RX.search(low):
         return 'xo'
-    if re.search(r'vmkernel|vmkwarning|hostd|vpxa|fdm|vobd|esxupdate|storagerm|hostprofile|/var/run/log|nfcd|vmware\.log|shell\.log|vmksummary', low):
-        return 'esxi'
-    if re.search(r'vpxd|vmware-vpx|vmware-sso|vmdird|vsphere-ui|vmon|postgres|vmware-sts|sts/|lookupsvc|vapi|vpxd-svcs|envoy|rhttpproxy|vsan-health|eam|content-library|certificate-manager|vmafdd|vmcad', low):
-        return 'vcenter'
     return 'unknown'
 
 
@@ -191,15 +181,7 @@ class Analyzer:
 
     # ---- scan helpers
     def _applicable(self, products):
-        out = []
-        if products & set(VATES):
-            products = products | set(VATES)      # XO reports xapi/SR errors and hosts log XO-visible failures: one Vates family
-        for r in self.rules:
-            if r['product'] == 'both' and getattr(self, 'vates_only', False) and r['id'] not in VATES_SHARED:
-                continue                      # VMware-flavoured shared rules (snapshot consolidation, HA agent...) are noise on XCP-ng/XO
-            if r['product'] == 'both' or r['product'] in products or 'unknown' in products:
-                out.append(r)
-        return out
+        return list(self.rules)          # every rule is a Vates rule; XO reports xapi/SR errors and hosts log XO-visible failures
 
     def _bucket(self, ts):
         i = int((ts - self.start) // self.bsize)
@@ -209,11 +191,9 @@ class Analyzer:
         t0 = time.time()
         files = [e for e in self.bundle.list_files()]
         cand = [e for e in files if is_log_candidate(e['path'])]
-        report_files = [e for e in files if e['path'].lower().endswith(('.txt', '.pdf')) and _SKIP_NAME.search(os.path.basename(e['path']))]
         products = Counter(classify_product(e['path']) for e in cand)
         prod_set = set(p for p in products if p != 'unknown')
         self.products = sorted(prod_set) or ['unknown']
-        self.vates_only = bool(prod_set) and prod_set <= set(VATES)
 
         # reference year + auto anchor from file tails
         tails = []
@@ -257,22 +237,11 @@ class Analyzer:
         for i, e in enumerate(cand):
             self.progress(i / max(n, 1) * 0.9, 'Scanning %s' % e['path'])
             try:
-                fp = classify_product(e['path'])
-                if fp == 'unknown' and prod_set and prod_set <= set(VATES):
-                    fp = None                # generic Linux logs (daemon.log, messages, kern.log) inside a Vates bundle
-                self._scan(e['path'], self._applicable(({fp} if fp else set()) | prod_set))
+                self._scan(e['path'], self.rules)
             except Exception as ex:   # never let one bad file abort the case
                 self.skipped.append((e['path'], 'error: %s' % ex))
-        reps = []
-        for e in report_files:
-            try:
-                rep = reports.parse_report_file(self.bundle.resolve(e['path']), self.start, self.end)
-                if rep:
-                    reps.append(rep)
-            except Exception as ex:
-                self.skipped.append((e['path'], 'report: %s' % ex))
         self.progress(0.95, 'Ranking')
-        out = self._build(reps, cand, files)
+        out = self._build(cand, files)
         out['stats']['seconds'] = round(time.time() - t0, 2)
         self.progress(1.0, 'Done')
         return out
@@ -441,8 +410,8 @@ class Analyzer:
             severity='high', score=score, relevance=rel, confidence='high' if corroborated else 'medium', chronic=False, advisory=False,
             count=len(found), strong=len(found), weak=0, first_seen='snapshot (no timestamp)', last_seen='snapshot (no timestamp)',
             nearest_to_anchor_s=None, topics=['disk-space'],
-            advice='Captured when the bundle was collected, so it shows the state at collection time, not necessarily at the incident. A full /storage/seat, /storage/db or / stops vpostgres/vpxd and aborts upgrade imports; grow the disk or purge, then retry.',
-            kb=None, search='VCSA /storage/seat full increase VMDK',
+            advice='Captured when the bundle was collected, so it shows the state at collection time, not necessarily at the incident. A full / or /var/log on an XCP-ng host (or on the XO appliance) stops xapi, yum and logging; free space (du -xh /var/log | sort -h | tail), then restart the toolstack or reboot the host if xapi does not recover.',
+            kb=None, search='XCP-ng /var/log full dom0 disk usage control domain',
             files=[dict(file=r, count=1) for r in sorted({f[0] for f in found})][:5], variants=[],
             samples=[dict(file=r, line=n, ts='snapshot', text=l, context=[]) for r, n, l, _p, _m in found[:3]],
             spark=[0] * self.nb, _first=0)]
@@ -509,15 +478,14 @@ class Analyzer:
 
 
     def _attach_kb(self, d):
-        vendor = 'Vates/XCP-ng' if getattr(self, 'vates_only', False) else None
         if d['kind'] == 'rule':
             text = ' '.join([d['title']] + [s['text'] for s in d['samples']] + [v['message'] for v in d['variants']])
             r = kb.research(d['id'], text, d.get('search'))
         elif d['kind'] == 'snapshot':
             text = ' '.join([d['title']] + [s['text'] for s in d['samples']])
-            r = kb.research('vc.disk_full', text, d.get('search'))
+            r = kb.research('xcp.host_disk_full', text, d.get('search'))
         else:
-            r = kb.research(None, '', d['title'][:100], kind='generic', vendor=vendor)
+            r = kb.research(None, '', d['title'][:100], kind='generic')
         d['kb_research'] = r
 
     @staticmethod
@@ -544,7 +512,7 @@ class Analyzer:
                 s['score'] = round(min(s['score'], c['score'] - 1), 1)
                 s['symptom_of'] = c['title']
 
-    def _build(self, reps, cand, files=()):
+    def _build(self, cand, files=()):
         items, advisories = [], []
         for f in self.findings.values():
             d = self._finding_dict(f)
@@ -562,27 +530,9 @@ class Analyzer:
         corroborated = any('disk-space' in (d.get('topics') or []) and d['kind'] == 'rule' for d in items)
         items += self._snapshot_findings(self._snapshots(files), corroborated)
         self._link_symptoms(items)
-        # reports
-        report_out, rep_items = [], []
-        for rep in reps:
-            report_out.append(rep)
-            for rf in reports.report_findings(rep):
-                if rf['stale']:
-                    rf['score'] = 5.0
-                else:
-                    topics = set(rf['topics'])
-                    # map toolbox plugin spaces onto topics
-                    sp = {'storage': 'storage', 'host': 'hardware', 'ha': 'ha', 'vsan': 'vsan', 'vm': 'vm'}
-                    mapped = {sp.get(t, t) for t in topics}
-                    rel = 25 if (mapped & self.topics) else 0
-                    rf['score'] = round(SEV_BASE[rf['severity']] + 12 + rel, 1)
-                rf['confidence'] = 'low' if rf['stale'] else ('high' if rf['score'] >= 65 else 'medium')
-                rep_items.append(rf)
         items.sort(key=lambda d: (-d['score'], d['_first']))
         for d in items + advisories:
             self._attach_kb(d)
-        for rf in rep_items:
-            rf['kb_research'] = kb.research(None, '', report_kb=rf.get('kb'), kind='report')
         for d in items:
             d.pop('_first', None)
         # timeline
@@ -603,8 +553,7 @@ class Analyzer:
             window=dict(start=fmt_ts(self.start), end=fmt_ts(self.end), anchor=fmt_ts(self.anchor),
                         anchor_source=self.anchor_source, before_h=round(self.before_s / 3600, 2),
                         after_h=round(self.after_s / 3600, 2)),
-            stats=st, findings=items, advisories=advisories, report_findings=sorted(rep_items, key=lambda d: -d['score']),
-            reports=report_out, timeline=dict(bucket_s=int(self.bsize), buckets=tl),
+            stats=st, findings=items, advisories=advisories, timeline=dict(bucket_s=int(self.bsize), buckets=tl),
             sequence=sequence, skipped=self.skipped[:50], kb_library=kb.library_info())
 
 

@@ -7,7 +7,7 @@ from . import __version__
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog='lvx', description='LogLens - targeted VMware log analysis')
+    ap = argparse.ArgumentParser(prog='lvx', description='LogLens Vates - targeted XCP-ng / Xen Orchestra log analysis')
     ap.add_argument('--version', action='version', version=__version__)
     sub = ap.add_subparsers(dest='cmd')
     s = sub.add_parser('serve', help='start the web UI')
@@ -62,7 +62,7 @@ def _templates(args):
         for t in templates.all_templates():
             print('%-6s %-9s %-14s %-13s %s' % (t['id'], t['product'], t['version'], t['evidence'], t['title']))
         i = templates.info()
-        print('\n%d templates from %s resolved case reports (anonymised; synthetic logs)' % (i['count'], i['reviewed_cases']))
+        print('\n%d synthetic scenarios (anonymised; built from public Vates search summaries)' % i['count'])
         return 0
     if not args.id:
         print('template id required', file=sys.stderr)
@@ -75,11 +75,11 @@ def _templates(args):
             print('  %d. %s' % (i, r))
         if not t['resolution']:
             print('  (none documented in the case)')
-        print('\nKB cited in the case:')
+        print('\nPublic pages cited (title / URL / date seen; summaries only):')
         for k in t['kb']:
-            print('  KB %s  %s  [%s]' % (k['id'], k['title'], k['role']))
+            print('  %s  %s  (seen %s) [%s]' % (k['title'], k['id'], k.get('seen', ''), k['role']))
         if not t['kb']:
-            print('  No Broadcom KB was cited in the case.')
+            print('  No public Vates KB was cited for this scenario.')
         if t['notes']:
             print('\nNotes: %s' % t['notes'])
         return 0

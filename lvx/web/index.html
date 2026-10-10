@@ -73,10 +73,10 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
 <div id="app">
 <aside>
   <h2>1. Open a bundle</h2>
-  <div class="drop" id="drop">Drop a support bundle here<br><small>.zip .tgz .tar.gz .log .gz GSS Toolbox / TDLog</small>
+  <div class="drop" id="drop">Drop a support bundle here<br><small>.zip .tgz .tar.gz .log .gz (xen-bugtool, XO journalctl)</small>
     <input type="file" id="file" hidden></div>
   <label>or a path on the server</label>
-  <div class="row"><input type="text" id="srvpath" placeholder="/data/bundles/vc-support.tgz"><button id="openpath" style="flex:0 0 auto">Open</button></div>
+  <div class="row"><input type="text" id="srvpath" placeholder="/data/bundles/xcp-ng-bugtool.tgz"><button id="openpath" style="flex:0 0 auto">Open</button></div>
   <div class="msg" id="openmsg"></div>
 
   <h2>2. Describe the issue</h2>
@@ -98,7 +98,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
   <div class="files" id="files" style="margin-top:6px"></div>
 </aside>
 <main>
-  <div id="tabs"><button data-t="find" class="on">Findings</button><button data-t="tl">Timeline</button><button data-t="view">Log viewer</button><button data-t="rep">Toolbox / TDLog</button><button data-t="info">Run info</button></div>
+  <div id="tabs"><button data-t="find" class="on">Findings</button><button data-t="tl">Timeline</button><button data-t="view">Log viewer</button><button data-t="info">Run info</button></div>
   <section class="pane on" id="pane-find"><div class="msg">Open a bundle, describe the issue and the time the customer reports, then Analyze. Everything outside that window is treated as noise.</div></section>
   <section class="pane" id="pane-tl"></section>
   <section class="pane" id="pane-view">
@@ -115,7 +115,6 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{border-bottom:1px
     </div>
     <div id="vtitle">no file open</div><div id="lines"></div>
   </section>
-  <section class="pane" id="pane-rep"><div class="msg">No GSS Toolbox or TDLog report in this bundle.</div></section>
   <section class="pane" id="pane-info"></section>
 </main>
 </div>
@@ -159,12 +158,12 @@ async function loaded(b) {
   S.bundle = b.id; $('#hdr').textContent = b.name + ' - ' + b.files + ' files'; $('#openmsg').className = 'msg'; $('#openmsg').textContent = 'Opened.';
   $('#go').disabled = false; const f = await api('/api/bundles/' + b.id + '/files'); S.files = f.files; drawFiles();
 }
-const LOGISH = /\.(log|out|err|all|txt)(\.\d+)?(\.gz)?$|messages|syslog|vmkernel|hostd|vpxa|fdm|vobd/i;
+const LOGISH = /\.(log|out|err|all|txt)(\.\d+)?(\.gz)?$|messages|syslog|smlog|xensource/i;
 
 function kbBlock(r) {
   if (!r) return '';
-  if (r.status === 'none') return '<div class="kbx none"><b>' + esc(r.vendor || 'Broadcom') + ' KB research:</b> ' + esc(r.message) + (r.searched ? ' <span class="meta">Manual search phrase: <code>' + esc(r.searched) + '</code></span>' : '') + '</div>';
-  let h = '<div class="kbx"><b>' + esc(r.vendor || 'Broadcom') + ' KB research</b> <span class="meta">' + esc(r.message) + '</span>';
+  if (r.status === 'none') return '<div class="kbx none"><b>' + esc(r.vendor || 'Vates/XCP-ng') + ' KB research:</b> ' + esc(r.message) + (r.searched ? ' <span class="meta">Manual search phrase: <code>' + esc(r.searched) + '</code></span>' : '') + '</div>';
+  let h = '<div class="kbx"><b>' + esc(r.vendor || 'Vates/XCP-ng') + ' KB research</b> <span class="meta">' + esc(r.message) + '</span>';
   r.entries.forEach(en => {
     h += '<div class="kbe"><b>' + esc(en.topic) + '</b>' + (en.precision === 'general' ? ' <span class="meta">(related - matched by rule only)</span>' : en.precision === 'case-template' ? (en.synthetic ? ' <span class="badge">synthetic scenario - not a resolved case</span>' : ' <span class="badge hi">from a resolved support case (anonymised)</span>') : '') + '<div>'
       + (en.articles.length ? en.articles : []).slice(0, 6).map(a => '<a class="lnk" target="_blank" rel="noopener" href="' + esc(a.url) + '">' + esc(a.label || ('KB ' + a.id)) + '</a> ' + esc(a.title) + (a.seen ? ' <span class="meta">(seen ' + esc(a.seen) + ')</span>' : '')).join('<br>') + (en.articles.length ? '' : '<span class="meta">No KB/article was cited in the case.</span>') + '</div>';
@@ -203,7 +202,7 @@ async function poll() {
 }
 
 
-// ---------- reviewer verdicts + raw-log evidence (shared by VMware and Vates findings)
+// ---------- reviewer verdicts + raw-log evidence (per finding)
 const VL = {confirm: 'Confirm', reject: 'Reject', unsure: 'Unsure'};
 function vkey() { const r = S.result; return 'lvx.verdicts.' + r.bundle + '|' + r.window.anchor; }
 function loadVerdicts() { try { S.verdicts = JSON.parse(localStorage.getItem(vkey()) || '{}') || {}; } catch (e) { S.verdicts = {}; } }
@@ -249,7 +248,7 @@ async function showEvidence(f, box) {
 }
 
 // ---------- results
-function render() { renderFind(); renderTL(); renderRep(); renderInfo(); }
+function render() { renderFind(); renderTL(); renderInfo(); }
 function renderFind() {
   const r = S.result, w = r.window, st = r.stats; let h = '';
   h += '<div class="banner"><b>Window</b> ' + esc(w.start) + ' &rarr; ' + esc(w.end) + ' &nbsp; <b>Incident</b> ' + esc(w.anchor) + ' <span class="meta">(' + esc(w.anchor_source) + ')</span><br>'
@@ -274,10 +273,7 @@ function renderFind() {
   });
   if ((r.advisories || []).length) { h += '<details><summary class="meta">' + r.advisories.length + ' informational advisor' + (r.advisories.length > 1 ? 'ies' : 'y') + ' (always-on, not ranked)</summary>'
     + r.advisories.map(a => '<div class="meta">' + esc(a.title) + (a.kb ? ' (KB ' + esc(a.kb) + ')' : '') + ' - ' + a.count.toLocaleString() + 'x. ' + esc(a.advice || '') + '</div>').join('') + '</details>'; }
-  if (r.kb_library) h += '<div class="meta" style="margin:10px 0">KB research comes from the LogLens KB library - a dated snapshot (Broadcom ' + esc(r.kb_library.researched) + (r.kb_library.vates_researched ? '; Vates/XCP-ng public pages ' + esc(r.kb_library.vates_researched) : '') + ', ' + r.kb_library.entries + ' topics) of knowledge-base research, summaries not article text, not a live search. Open each article and confirm it applies to your build before acting.</div>';
-  if (r.report_findings.length) { h += '<h2>From GSS Toolbox / TDLog reports</h2>';
-    r.report_findings.forEach(f => { h += '<div class="card ' + (f.stale ? 'stale ' : '') + esc(f.severity) + '"><b>[' + esc(f.source) + '] ' + esc(f.title) + '</b>' + (f.kb ? '<span class="badge">KB ' + esc(f.kb) + '</span>' : '')
-      + (f.stale ? '<span class="badge">stale - outside window</span>' : '<span class="badge">score ' + f.score + '</span>') + (f.advice ? '<div class="meta">' + esc(f.advice) + '</div>' : '') + kbBlock(f.kb_research) + '</div>'; }); }
+  if (r.kb_library) h += '<div class="meta" style="margin:10px 0">KB research comes from the LogLens KB library - a dated snapshot (public Vates/XCP-ng pages seen ' + esc(r.kb_library.researched) + ', ' + r.kb_library.entries + ' topics) of web-search results, summaries not article text, not a live search. Open each article and confirm it applies to your build before acting.</div>';
   $('#pane-find').innerHTML = h;
   $('#pane-find').querySelectorAll('a[data-f]').forEach(a => a.onclick = () => openFile(a.dataset.f, +a.dataset.l));
   wireVerdicts($('#pane-find')); updateReviewed();
@@ -297,18 +293,6 @@ function renderTL() {
   h += '<h2>Event sequence (first occurrence - the earliest item is often closest to the root cause)</h2><table><tr><th>Time</th><th>Event</th><th>Score</th></tr>'
     + S.result.sequence.map(x => '<tr><td>' + esc(x.time) + '</td><td>' + esc(x.title) + '</td><td>' + x.score + '</td></tr>').join('') + '</table>';
   $('#pane-tl').innerHTML = h;
-}
-function renderRep() {
-  const reps = S.result.reports; if (!reps.length) { $('#pane-rep').innerHTML = '<div class="msg">No GSS Toolbox or TDLog report found in this bundle. Open one with the drop zone (.txt or .pdf).</div>'; return; }
-  let h = '';
-  reps.forEach(r => {
-    h += '<div class="banner"><b>' + (r.kind === 'toolbox' ? 'GSS Toolbox' : 'TDLog') + '</b> &mdash; ' + esc(r.file) + '</div>';
-    if (r.kind === 'toolbox') { const m = r.meta; h += '<div class="meta">' + ['hostname', 'product', 'version', 'build', 'hardware', 'uptime', 'log_date'].filter(k => m[k]).map(k => k + ': ' + esc(m[k])).join(' &middot; ') + '</div>';
-      h += '<table><tr><th>Module</th><th>Alert</th><th>Description</th><th>KB</th><th>Status</th></tr>' + r.modules.filter(x => x.alert !== 'info').map(x => '<tr' + (x.stale ? ' style="opacity:.5"' : '') + '><td>' + esc(x.module) + '</td><td>' + esc(x.alert) + '</td><td>' + esc(x.description) + '</td><td>' + esc(x.kb || '') + '</td><td>' + (x.stale ? 'stale (events older than window)' : 'relevant') + '</td></tr>').join('') + '</table>'; }
-    else { const s = r.sections; h += '<h2>Signatures</h2><table><tr><th>KB</th><th>Title</th><th>Matches</th><th>Dates</th><th>Status</th></tr>' + s.signatures.map(x => '<tr' + (x.in_window ? '' : ' style="opacity:.5"') + '><td>' + esc(x.kb) + '</td><td>' + esc(x.title || x.regex) + '</td><td>' + x.count + '</td><td>' + esc((x.dates || []).join(', ')) + '</td><td>' + (x.in_window ? 'in window' : 'outside window') + '</td></tr>').join('') + '</table>';
-      if (s.certificates.length) h += '<h2>Certificates</h2><table><tr><th>Subject</th><th>Expires</th><th>Days left</th></tr>' + s.certificates.map(c => '<tr><td>' + esc(c.subject) + '</td><td>' + esc(c.not_after) + '</td><td style="' + (c.days_left < 30 ? 'color:var(--crit)' : '') + '">' + c.days_left + '</td></tr>').join('') + '</table>'; }
-  });
-  $('#pane-rep').innerHTML = h;
 }
 function renderInfo() {
   const r = S.result, st = r.stats; $('#pane-info').innerHTML = '<table>' + Object.keys(st).map(k => '<tr><th>' + esc(k) + '</th><td>' + esc(st[k]) + '</td></tr>').join('') + '</table>'

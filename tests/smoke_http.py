@@ -12,7 +12,7 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import gen  # noqa: E402
+import vates_gen as gen  # noqa: E402
 
 BASE = (sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:8765').rstrip('/')
 TOKEN = os.environ.get('LVX_TOKEN', '')
@@ -42,8 +42,8 @@ def check(name, ok, detail=''):
 
 tmp = tempfile.mkdtemp(prefix='lvx_smoke_')
 try:
-    truth = gen.build_dir(os.path.join(tmp, 'src'), 'esx_apd')
-    tgz = gen.pack(os.path.join(tmp, 'src'), os.path.join(tmp, 'b.tgz'), 'tgz', inner_name='esx_apd')
+    truth = gen.build_dir(os.path.join(tmp, 'src'), 'sr_insufficient_space')
+    tgz = gen.pack(os.path.join(tmp, 'src'), os.path.join(tmp, 'b.tgz'), 'tgz', inner_name='sr_insufficient_space')
     s, b = call('GET', '/api/health'); check('health', s == 200 and json.loads(b)['ok'])
     s, b = call('GET', '/'); check('index.html', s == 200 and b'LogLens' in b)
     s, b = call('GET', '/..%2f..%2fetc/passwd'); check('static traversal blocked', s == 404, s)
@@ -64,10 +64,10 @@ try:
     check('analyze done', j['state'] == 'done', j.get('error'))
     for fmt in ('md', 'json', 'html'):
         s, b = call('GET', '/api/report/%s.%s' % (jid, fmt)); check('report.' + fmt, s == 200 and len(b) > 200, s)
-    path = next(f['path'] if isinstance(f, dict) else f for f in files if 'vmkernel' in (f['path'] if isinstance(f, dict) else f))
+    path = next(f['path'] if isinstance(f, dict) else f for f in files if 'SMlog' in (f['path'] if isinstance(f, dict) else f))
     q = urllib.parse.urlencode({'bundle': bid, 'path': path, 'limit': 20})
     s, b = call('GET', '/api/view?' + q); check('view', s == 200 and json.loads(b), s)
-    q = urllib.parse.urlencode({'bundle': bid, 'path': path, 'q': 'APD'})
+    q = urllib.parse.urlencode({'bundle': bid, 'path': path, 'q': 'Insufficient'})
     s, b = call('GET', '/api/find?' + q); check('find', s == 200, s)
     q = urllib.parse.urlencode({'bundle': bid, 'path': '../../etc/passwd'})
     s, b = call('GET', '/api/view?' + q); check('view path traversal blocked', s in (400, 403, 404), s)

@@ -1,0 +1,57 @@
+[
+ {
+  "name": "findings rendered with a verdict control each",
+  "ok": true,
+  "extra": "4 findings"
+ },
+ {
+  "name": "first finding is a Vates rule",
+  "ok": true,
+  "extra": "1. XCP-ng storage: SR full / insufficient space"
+ },
+ {
+  "name": "Confirm button pressed",
+  "ok": true,
+  "extra": ""
+ },
+ {
+  "name": "reviewed counter updated",
+  "ok": true,
+  "extra": "Reviewed 1 of 4 findings: 1 confirmed, 0 rejected, 0 unsure"
+ },
+ {
+  "name": "raw-log context shows hit plus surrounding lines",
+  "ok": true,
+  "extra": "27 rows; hit=2102Mar 10 08:00:00 xcp01 SM: [21433] Insufficient space on SR 0a1b2c3d-1111-2222-3333-444"
+ },
+ {
+  "name": "Vates KB block shows links with seen date or \"No public Vates KB found\"",
+  "ok": true,
+  "extra": "Vates/XCP-ng KB research Matched from the LogLens KB library and the synthetic scenarios (public pages seen 2026-10-10 i"
+ },
+ {
+  "name": "states that article text was not read",
+  "ok": true,
+  "extra": ""
+ },
+ {
+  "name": "markdown export carries the verdict and note",
+  "ok": true,
+  "extra": ""
+ },
+ {
+  "name": "viewer opens the file at the matching line (highlighted)",
+  "ok": true,
+  "extra": "344 lines; cur=2102Mar 10 08:00:00 xcp01 SM: [21433] Insufficient space on SR 0a1b2c3d-1111-222"
+ },
+ {
+  "name": "verdict and note persisted in the browser across reload",
+  "ok": true,
+  "extra": "matches SMlog line, verified in the raw log"
+ },
+ {
+  "name": "no page errors",
+  "ok": true,
+  "extra": ""
+ }
+]
