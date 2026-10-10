@@ -1,9 +1,12 @@
-# LogLens - targeted VMware and Vates (XCP-ng / Xen Orchestra) log analysis
+# LogLens Vates - targeted XCP-ng and Xen Orchestra log analysis
 
 > **Unofficial project.** LogLens is an independent, community tool. It is not affiliated with, endorsed by or supported by Broadcom, VMware or Vates.
 > KB links come from public search results (titles and URLs only; article text was not read) and may be out of date. Always verify a finding against the raw log and the vendor's own documentation.
 > Case templates are anonymised, synthetic scenarios (invented hosts, 192.0.2.x addresses); no real customer logs or data are included. Never upload customer logs to a tool you do not control.
 
+
+> This project was split off from LogLens (the VMware tool). The shared engine and the VMware rules are still included so both products work in one bundle; the focus here is XCP-ng / XO.
+> **Try it now:** `examples/vates/` holds 6 synthetic cases (bundles, reference reports, screenshots) and `examples/vates/CASES.txt` with the expected finding and public link per case.
 
 Same job as the Lumberjack Log Viewer + TDLog + GSS Toolbox workflow, but **driven by the customer's
 issue and timestamp**: everything outside the incident window is treated as noise and findings are
