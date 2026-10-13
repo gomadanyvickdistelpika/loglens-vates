@@ -1,0 +1,498 @@
+{
+ "aggregate": {
+  "cases": 10,
+  "passed": 10,
+  "top1": 9,
+  "top3": 9,
+  "positives": 9,
+  "also_found": 15,
+  "also_expected": 15,
+  "false_high": 0,
+  "evidence_ok": 9,
+  "evidence_total": 9,
+  "total_lines": 3091963,
+  "total_wall_s": 24.9,
+  "avg_lines_per_s": 124275,
+  "max_peak_rss_mb": 101.0,
+  "max_wall_s": 3.36,
+  "avg_noise_removed_pct": 92.37,
+  "step_s": 15,
+  "python": "3.13.16",
+  "platform": "Linux-6.18.44-fc-v114-x86_64-with-glibc2.39",
+  "cpus": 4,
+  "run_date": "2026-10-13"
+ },
+ "cases": [
+  {
+   "id": "T01",
+   "name": "HA pool: hosts self-fence after a management-network blip",
+   "kind": "xcpng",
+   "root": "xcp.ha_fence",
+   "top5": [
+    "xcp.ha_fence",
+    "xcp.master_unreachable",
+    "xcp.vm_start_fail"
+   ],
+   "root_rank": 1,
+   "also_expected": [
+    "xcp.master_unreachable"
+   ],
+   "also_found": [
+    "xcp.master_unreachable"
+   ],
+   "false_high": [],
+   "evidence_ok": true,
+   "lines_total": 325401,
+   "lines_in_window": 24573,
+   "noise_removed_pct": 92.45,
+   "findings": 5,
+   "rule_findings": 3,
+   "bundle_mb": 2.95,
+   "extract_s": 0.09,
+   "analyse_s": 2.38,
+   "wall_s": 2.47,
+   "lines_per_s": 131509,
+   "peak_rss_mb": 83.4,
+   "window": "2026-09-26T14:30:00Z -> 2026-09-27T17:30:00Z",
+   "anchor": "2026-09-27T14:30:00Z",
+   "passed": true
+  },
+  {
+   "id": "T02",
+   "name": "Storage cascade across XCP-ng and XO: SR full -> coalesce -> chain -> backup + VM start",
+   "kind": "vates",
+   "root": "xcp.sr_full",
+   "top5": [
+    "xcp.sr_full",
+    "xcp.coalesce_stuck",
+    "xcp.xo_backup",
+    "xcp.sr_chain",
+    "xcp.vm_start_fail"
+   ],
+   "root_rank": 1,
+   "also_expected": [
+    "xcp.coalesce_stuck",
+    "xcp.sr_chain",
+    "xcp.xo_backup",
+    "xcp.vm_start_fail"
+   ],
+   "also_found": [
+    "xcp.coalesce_stuck",
+    "xcp.sr_chain",
+    "xcp.xo_backup",
+    "xcp.vm_start_fail"
+   ],
+   "false_high": [],
+   "evidence_ok": true,
+   "lines_total": 405831,
+   "lines_in_window": 30660,
+   "noise_removed_pct": 92.45,
+   "findings": 10,
+   "rule_findings": 5,
+   "bundle_mb": 3.82,
+   "extract_s": 0.18,
+   "analyse_s": 3.06,
+   "wall_s": 3.24,
+   "lines_per_s": 125430,
+   "peak_rss_mb": 100.9,
+   "window": "2026-09-26T14:30:00Z -> 2026-09-27T17:30:00Z",
+   "anchor": "2026-09-27T14:30:00Z",
+   "passed": true
+  },
+  {
+   "id": "T03",
+   "name": "iSCSI multipath storm: paths fail, the SR drops, disk I/O errors",
+   "kind": "xcpng",
+   "root": "xcp.multipath_fail",
+   "top5": [
+    "xcp.multipath_fail",
+    "xcp.sr_unplugged",
+    "xcp.io_error"
+   ],
+   "root_rank": 1,
+   "also_expected": [
+    "xcp.sr_unplugged",
+    "xcp.io_error"
+   ],
+   "also_found": [
+    "xcp.sr_unplugged",
+    "xcp.io_error"
+   ],
+   "false_high": [],
+   "evidence_ok": true,
+   "lines_total": 325241,
+   "lines_in_window": 24561,
+   "noise_removed_pct": 92.45,
+   "findings": 5,
+   "rule_findings": 3,
+   "bundle_mb": 2.95,
+   "extract_s": 0.09,
+   "analyse_s": 2.42,
+   "wall_s": 2.51,
+   "lines_per_s": 129406,
+   "peak_rss_mb": 83.4,
+   "window": "2026-09-26T14:30:00Z -> 2026-09-27T17:30:00Z",
+   "anchor": "2026-09-27T14:30:00Z",
+   "passed": true
+  },
+  {
+   "id": "T04",
+   "name": "dom0 out of memory kills xapi, XO shows the host disconnected and backups fail",
+   "kind": "vates",
+   "root": "xcp.dom0_oom",
+   "top5": [
+    "xcp.dom0_oom",
+    "xcp.xo_backup",
+    "xcp.xapi_down"
+   ],
+   "root_rank": 1,
+   "also_expected": [
+    "xcp.xapi_down",
+    "xcp.xo_backup"
+   ],
+   "also_found": [
+    "xcp.xapi_down",
+    "xcp.xo_backup"
+   ],
+   "false_high": [],
+   "evidence_ok": true,
+   "lines_total": 406120,
+   "lines_in_window": 30655,
+   "noise_removed_pct": 92.45,
+   "findings": 8,
+   "rule_findings": 3,
+   "bundle_mb": 3.83,
+   "extract_s": 0.16,
+   "analyse_s": 3.14,
+   "wall_s": 3.3,
+   "lines_per_s": 123005,
+   "peak_rss_mb": 100.7,
+   "window": "2026-09-26T14:30:00Z -> 2026-09-27T17:30:00Z",
+   "anchor": "2026-09-27T14:30:00Z",
+   "passed": true
+  },
+  {
+   "id": "T05",
+   "name": "Leaked storage datapath after an aborted export: backups and VM start fail",
+   "kind": "vates",
+   "root": "xcp.datapath_leak",
+   "top5": [
+    "xcp.datapath_leak",
+    "xcp.xo_backup",
+    "xcp.vm_start_fail"
+   ],
+   "root_rank": 1,
+   "also_expected": [
+    "xcp.xo_backup",
+    "xcp.vm_start_fail"
+   ],
+   "also_found": [
+    "xcp.xo_backup",
+    "xcp.vm_start_fail"
+   ],
+   "false_high": [],
+   "evidence_ok": true,
+   "lines_total": 406154,
+   "lines_in_window": 30564,
+   "noise_removed_pct": 92.47,
+   "findings": 8,
+   "rule_findings": 3,
+   "bundle_mb": 3.83,
+   "extract_s": 0.19,
+   "analyse_s": 3.13,
+   "wall_s": 3.33,
+   "lines_per_s": 122144,
+   "peak_rss_mb": 100.7,
+   "window": "2026-09-26T14:30:00Z -> 2026-09-27T17:30:00Z",
+   "anchor": "2026-09-27T14:30:00Z",
+   "passed": true
+  },
+  {
+   "id": "T06",
+   "name": "dom0 disk full from log spam: xapi down and updates fail",
+   "kind": "xcpng",
+   "root": "xcp.host_disk_full",
+   "top5": [
+    "xcp.host_disk_full",
+    "xcp.xapi_down",
+    "xcp.update_fail"
+   ],
+   "root_rank": 1,
+   "also_expected": [
+    "xcp.xapi_down",
+    "xcp.update_fail"
+   ],
+   "also_found": [
+    "xcp.xapi_down",
+    "xcp.update_fail"
+   ],
+   "false_high": [],
+   "evidence_ok": true,
+   "lines_total": 325689,
+   "lines_in_window": 24574,
+   "noise_removed_pct": 92.45,
+   "findings": 5,
+   "rule_findings": 3,
+   "bundle_mb": 2.95,
+   "extract_s": 0.09,
+   "analyse_s": 2.54,
+   "wall_s": 2.63,
+   "lines_per_s": 123925,
+   "peak_rss_mb": 83.4,
+   "window": "2026-09-26T14:30:00Z -> 2026-09-27T17:30:00Z",
+   "anchor": "2026-09-27T14:30:00Z",
+   "passed": true
+  },
+  {
+   "id": "T07",
+   "name": "Xen Orchestra cannot connect to the pool after a certificate change",
+   "kind": "xo",
+   "root": "xcp.xo_tls",
+   "top5": [
+    "xcp.xo_tls"
+   ],
+   "root_rank": 1,
+   "also_expected": [],
+   "also_found": [],
+   "false_high": [],
+   "evidence_ok": true,
+   "lines_total": 82648,
+   "lines_in_window": 6558,
+   "noise_removed_pct": 92.07,
+   "findings": 4,
+   "rule_findings": 1,
+   "bundle_mb": 0.92,
+   "extract_s": 0.03,
+   "analyse_s": 0.73,
+   "wall_s": 0.76,
+   "lines_per_s": 108192,
+   "peak_rss_mb": 37.7,
+   "window": "2026-09-26T14:30:00Z -> 2026-09-27T17:30:00Z",
+   "anchor": "2026-09-27T14:30:00Z",
+   "passed": true
+  },
+  {
+   "id": "T08",
+   "name": "XOA update fails because the appliance disk is full",
+   "kind": "xo",
+   "root": "xcp.xo_disk_full",
+   "top5": [
+    "xcp.xo_disk_full",
+    "xcp.xoa_update"
+   ],
+   "root_rank": 1,
+   "also_expected": [
+    "xcp.xoa_update"
+   ],
+   "also_found": [
+    "xcp.xoa_update"
+   ],
+   "false_high": [],
+   "evidence_ok": true,
+   "lines_total": 82654,
+   "lines_in_window": 6626,
+   "noise_removed_pct": 91.98,
+   "findings": 5,
+   "rule_findings": 2,
+   "bundle_mb": 0.92,
+   "extract_s": 0.03,
+   "analyse_s": 0.82,
+   "wall_s": 0.85,
+   "lines_per_s": 97657,
+   "peak_rss_mb": 37.7,
+   "window": "2026-09-26T14:30:00Z -> 2026-09-27T17:30:00Z",
+   "anchor": "2026-09-27T14:30:00Z",
+   "passed": true
+  },
+  {
+   "id": "T09",
+   "name": "Rolling Pool Update stops: not enough free memory to evacuate a host",
+   "kind": "xcpng",
+   "root": "xcp.vm_no_memory",
+   "top5": [
+    "xcp.vm_no_memory",
+    "xcp.update_fail"
+   ],
+   "root_rank": 1,
+   "also_expected": [
+    "xcp.update_fail"
+   ],
+   "also_found": [
+    "xcp.update_fail"
+   ],
+   "false_high": [],
+   "evidence_ok": true,
+   "lines_total": 325519,
+   "lines_in_window": 24630,
+   "noise_removed_pct": 92.43,
+   "findings": 4,
+   "rule_findings": 2,
+   "bundle_mb": 2.95,
+   "extract_s": 0.09,
+   "analyse_s": 2.34,
+   "wall_s": 2.43,
+   "lines_per_s": 133978,
+   "peak_rss_mb": 83.4,
+   "window": "2026-09-26T14:30:00Z -> 2026-09-27T17:30:00Z",
+   "anchor": "2026-09-27T14:30:00Z",
+   "passed": true
+  },
+  {
+   "id": "T10",
+   "name": "Healthy pool with heavy benign noise (negative case)",
+   "kind": "vates",
+   "root": null,
+   "top5": [],
+   "root_rank": null,
+   "also_expected": [],
+   "also_found": [],
+   "false_high": [],
+   "evidence_ok": null,
+   "lines_total": 406706,
+   "lines_in_window": 30655,
+   "noise_removed_pct": 92.46,
+   "findings": 5,
+   "rule_findings": 0,
+   "bundle_mb": 3.83,
+   "extract_s": 0.16,
+   "analyse_s": 3.2,
+   "wall_s": 3.36,
+   "lines_per_s": 121021,
+   "peak_rss_mb": 101.0,
+   "window": "2026-09-26T14:30:00Z -> 2026-09-27T17:30:00Z",
+   "anchor": "2026-09-27T14:30:00Z",
+   "passed": true
+  }
+ ],
+ "scaling": [
+  {
+   "id": "T02",
+   "name": "Storage cascade across XCP-ng and XO: SR full -> coalesce -> chain -> backup + VM start",
+   "kind": "vates",
+   "root": "xcp.sr_full",
+   "top5": [
+    "xcp.sr_full",
+    "xcp.coalesce_stuck",
+    "xcp.xo_backup",
+    "xcp.sr_chain",
+    "xcp.vm_start_fail"
+   ],
+   "root_rank": 1,
+   "also_expected": [
+    "xcp.coalesce_stuck",
+    "xcp.sr_chain",
+    "xcp.xo_backup",
+    "xcp.vm_start_fail"
+   ],
+   "also_found": [
+    "xcp.coalesce_stuck",
+    "xcp.sr_chain",
+    "xcp.xo_backup",
+    "xcp.vm_start_fail"
+   ],
+   "false_high": [],
+   "evidence_ok": true,
+   "lines_total": 102880,
+   "lines_in_window": 8090,
+   "noise_removed_pct": 92.14,
+   "findings": 10,
+   "rule_findings": 5,
+   "bundle_mb": 1.04,
+   "extract_s": 0.03,
+   "analyse_s": 0.81,
+   "wall_s": 0.84,
+   "lines_per_s": 122497,
+   "peak_rss_mb": 37.4,
+   "window": "2026-09-26T14:30:00Z -> 2026-09-27T17:30:00Z",
+   "anchor": "2026-09-27T14:30:00Z",
+   "passed": true,
+   "step": 60
+  },
+  {
+   "id": "T02",
+   "name": "Storage cascade across XCP-ng and XO: SR full -> coalesce -> chain -> backup + VM start",
+   "kind": "vates",
+   "root": "xcp.sr_full",
+   "top5": [
+    "xcp.sr_full",
+    "xcp.coalesce_stuck",
+    "xcp.xo_backup",
+    "xcp.sr_chain",
+    "xcp.vm_start_fail"
+   ],
+   "root_rank": 1,
+   "also_expected": [
+    "xcp.coalesce_stuck",
+    "xcp.sr_chain",
+    "xcp.xo_backup",
+    "xcp.vm_start_fail"
+   ],
+   "also_found": [
+    "xcp.coalesce_stuck",
+    "xcp.sr_chain",
+    "xcp.xo_backup",
+    "xcp.vm_start_fail"
+   ],
+   "false_high": [],
+   "evidence_ok": true,
+   "lines_total": 405831,
+   "lines_in_window": 30660,
+   "noise_removed_pct": 92.45,
+   "findings": 10,
+   "rule_findings": 5,
+   "bundle_mb": 3.82,
+   "extract_s": 0.17,
+   "analyse_s": 3.17,
+   "wall_s": 3.34,
+   "lines_per_s": 121522,
+   "peak_rss_mb": 100.6,
+   "window": "2026-09-26T14:30:00Z -> 2026-09-27T17:30:00Z",
+   "anchor": "2026-09-27T14:30:00Z",
+   "passed": true,
+   "step": 15
+  },
+  {
+   "id": "T02",
+   "name": "Storage cascade across XCP-ng and XO: SR full -> coalesce -> chain -> backup + VM start",
+   "kind": "vates",
+   "root": "xcp.sr_full",
+   "top5": [
+    "xcp.sr_full",
+    "xcp.coalesce_stuck",
+    "xcp.xo_backup",
+    "xcp.sr_chain",
+    "xcp.vm_start_fail"
+   ],
+   "root_rank": 1,
+   "also_expected": [
+    "xcp.coalesce_stuck",
+    "xcp.sr_chain",
+    "xcp.xo_backup",
+    "xcp.vm_start_fail"
+   ],
+   "also_found": [
+    "xcp.coalesce_stuck",
+    "xcp.sr_chain",
+    "xcp.xo_backup",
+    "xcp.vm_start_fail"
+   ],
+   "false_high": [],
+   "evidence_ok": true,
+   "lines_total": 1215227,
+   "lines_in_window": 91201,
+   "noise_removed_pct": 92.5,
+   "findings": 10,
+   "rule_findings": 5,
+   "bundle_mb": 10.67,
+   "extract_s": 0.77,
+   "analyse_s": 9.2,
+   "wall_s": 9.97,
+   "lines_per_s": 121935,
+   "peak_rss_mb": 269.9,
+   "window": "2026-09-26T14:30:00Z -> 2026-09-27T17:30:00Z",
+   "anchor": "2026-09-27T14:30:00Z",
+   "passed": true,
+   "step": 5
+  }
+ ]
+}

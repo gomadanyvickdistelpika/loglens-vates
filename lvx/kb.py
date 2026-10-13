@@ -109,4 +109,4 @@ def research(rule_id, text, search_phrase=None, kind='rule'):
                             'Try the search phrase manually on docs.xcp-ng.org, docs.xen-orchestra.com and the XCP-ng forum.' % lib['researched'])
     return dict(base, status='found', entries=ents[:MAX_SHOWN], more=max(0, len(ents) - MAX_SHOWN),
                 message='Matched from the LogLens KB library%s (public pages seen %s in web-search results, not a live search). '
-                        'Only search-result summaries were used; the article text was not read.' % (' and the synthetic scenarios' if tmpl else '', lib['researched']))
+                        'Search-result summaries only; the article text was not read, except where an entry\'s note says the page itself was read.' % (' and the synthetic scenarios' if tmpl else '', lib['researched']))

@@ -15,9 +15,9 @@ import os
 T = []
 
 
-def kb(url, title, role='cited'):
+def kb(url, title, role='cited', seen='2026-10-10'):
     assert str(url).startswith('https://') and title, url
-    return dict(id=str(url), title=title, role=role, seen='2026-10-10')      # date the result appeared in a web search (summary only)
+    return dict(id=str(url), title=title, role=role, seen=seen)      # date the page appeared in a web search (summary only) or was fetched
 
 
 def tpl(id, title, product, version, issue, evidence, expect, lines, cause='', resolution=(), kbs=(), match=None,
@@ -217,6 +217,69 @@ tpl('CT-63', 'Xen Orchestra: update and nightly backups fail with ENOSPC (applia
     kbs=[kb(FM + '7246/xen-orchestra-update-failed-error-enospc-no-space-left-on-device', 'Xen Orchestra Update Failed - Error: ENOSPC: no space left on device', 'primary'),
          kb(FM + '5788/backup-error-with-space-available', 'Backup error with space available', 'secondary')],
     match=r'ENOSPC|no space left|is full', notes=VN)
+
+# ---- storage / kernel scenarios from the review of the public Fohdeesha/xcp-stuff health check (page text read 2026-10-13) ----
+XS = 'https://github.com/Fohdeesha/xcp-stuff'
+XS_T = 'Fohdeesha/xcp-stuff: XCP-ng / XOA health check and repair scripts (README, src/checks.py, src/config.py read)'
+VN2 = VN + ' This scenario also draws on the public Fohdeesha/xcp-stuff repo (GPL-3.0), whose README, src/checks.py and src/config.py were read on 2026-10-13.'
+
+tpl('CT-64', 'XCP-ng storage: array LUN change, multipath paths fail, the iSCSI SR drops after switch maintenance', 'xcpng', '8.x',
+    'After switch maintenance an iSCSI storage repository on host xcp02 went offline and its VMs froze.',
+    'mixed', ['xcp.lun_change', 'xcp.multipath_fail', 'xcp.sr_unplugged'], [
+        (-3000, KERN, '{s} xcp02 kernel: scsi 3:0:0:1: Warning! Received an indication that the LUN assignments on this target have changed. The Linux SCSI layer does not automatically remap LUN assignments.', 'typical'),
+        (-2400, KERN, '{s} xcp02 kernel: device-mapper: multipath: Failing path 8:32.', 'typical'),
+        (-2390, MSGS, '{s} xcp02 multipathd[812]: mpatha: remaining active paths: 0', 'typical'),
+        (-2300, SMLOG, '{s} xcp02 SM: [8812] SR is not available: /dev/disk/by-scsid/360000000000000000e00000000010001 does not exist', 'typical')],
+    cause="Per the read of the community health check: it watches kern.log for the LUN-assignments-changed message and for \"device-mapper: multipath: Failing path\", and flags maps with no usable path or path counts that differ between hosts. Link between them and the SR dropping is this scenario's assumption, not stated in the repo.",
+    resolution=['Check multipath -ll on every host: a map with no usable path, or path counts that differ between hosts.', 'Verify with the storage team whether the LUN mapping was changed on purpose before re-plugging the SR.'],
+    kbs=[kb(XS, XS_T, 'primary', '2026-10-13'), kb(FM + '10903/how-to-re-attach-an-sr', 'How to Re-attach an SR', 'secondary')],
+    match=r'multipath|LUN assignments|by-scsid', notes=VN2)
+
+tpl('CT-65', 'XCP-ng storage: leaked datapath after an aborted backup, later attaches and backups fail', 'vates', '8.3',
+    'Nightly backups of one VM fail and the VM will not start again on host xcp01 after a failed export; its disk shows as still in use.',
+    'mixed', ['xcp.datapath_leak', 'xcp.xo_backup', 'xcp.vm_start_fail'], [
+        (-3000, SMLOG, '{s} xcp01 SM: [30112] VDI 6b5a4c3d is not detached cleanly, still open on host', 'typical'),
+        (-2990, SMLOG, '{s} xcp01 SM: [30113] Failed to lock /var/lock/sm/0a1b2c3d/sr on first attempt, blocked by PID 4411', 'typical'),
+        (-2980, SMLOG, '{s} xcp01 SM: [30113] tap.deactivate: Warning, No such Tapdisk(minor=5)', 'typical'),
+        (-2970, XH, '{s} xcp01 xapi: [error|xcp01.lab.example|9901 ||storage_access] Illegal_transition: Attached -> Activated', 'typical'),
+        (-2000, XOJ, '{s} xo01 xo-server[771]: 2026-03-10T09:26:40.000Z xo:backups:worker ERROR Backup job nightly failed: VDI_IO_ERROR(Device I/O errors)', 'typical'),
+        (-600, XH, '{s} xcp01 xapi: [error|xcp01.lab.example|9944 ||xapi] Failed to start the VM web07: the VDI cannot be attached on this host', 'typical')],
+    cause='Per the read of the community storage-state-fixer.py: dead dom0 datapaths, stale dom0 VBDs, paused or wedged tapdisks and stuck GC flags make exports, backups and VBD unplugs fail; with other datapaths present xapi refuses the state change (Illegal_transition), the VDI is marked leaked and later attaches on that host fail. The tool is for XCP-ng 8.3 only.',
+    resolution=['Identify the VDI and tapdisk (tap-ctl list) and confirm no VM really uses it before touching anything.', 'The third-party storage-state-fixer.py reports what it found and changes things only after you type yes (it restarts xapi on that host; HA is turned off and on around it): read it and test on a lab host first.'],
+    kbs=[kb(XS, XS_T, 'primary', '2026-10-13')], match=r'detached cleanly|still open|blocked by PID|No such Tapdisk|Illegal_transition|VDI_IO_ERROR|Failed to start', notes=VN2)
+
+tpl('CT-66', 'XCP-ng host: dom0 OOM-kills xapi, xe commands time out and XO shows the host disconnected', 'xcpng', '8.x',
+    'xe commands on host xcp01 time out and Xen Orchestra shows the host as disconnected; the host has been up for months.',
+    'mixed', ['xcp.dom0_oom', 'xcp.xapi_down'], [
+        (-2400, KERN, '{s} xcp01 kernel: xapi invoked oom-killer: gfp_mask=0x24201ca, order=0, oom_score_adj=0', 'typical'),
+        (-2399, KERN, '{s} xcp01 kernel: Out of memory: Killed process 3321 (xapi) total-vm:2104576kB, anon-rss:1048576kB, file-rss:0kB', 'typical'),
+        (-2300, DMN, '{s} xcp01 systemd[1]: xapi.service: main process exited, code=killed, status=9/KILL', 'typical')],
+    cause="Per the read of the community health check: it lists dmesg lines containing \"out of memory\" as OOM events and flags dom0 memory use above 65%. That xapi was the victim here is this scenario's assumption.",
+    resolution=['Check dom0 memory use and what grew (top, xe-toolstack-restart only after reading the kernel log), then consider more dom0 memory.', 'Restart the toolstack once memory is understood; running VMs are not touched by a toolstack restart.'],
+    kbs=[kb(XS, XS_T, 'primary', '2026-10-13')], match=r'oom|Out of memory|xapi', notes=VN2)
+
+
+tpl('CT-67', 'XCP-ng host: CIFS ISO mount stalls, hung tasks and disk I/O errors in the kernel log', 'xcpng', '8.x',
+    'Host xcp01 becomes sluggish, the console hangs when browsing the ISO library and a local disk logs errors.',
+    'mixed', ['xcp.mount_stall', 'xcp.io_error'], [
+        (-2400, KERN, '{s} xcp01 kernel: CIFS: VFS: Server 192.0.2.70 has not responded in 180 seconds. Reconnecting...', 'typical'),
+        (-2200, KERN, '{s} xcp01 kernel: INFO: task tapdisk:2210 blocked for more than 120 seconds.', 'typical'),
+        (-2100, KERN, '{s} xcp01 kernel: blk_update_request: I/O error, dev sdb, sector 123456 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 0', 'typical'),
+        (-2090, SMLOG, '{s} xcp01 SM: [8812] Error: [Errno 5] Input/output error: /var/run/sr-mount/0a1b2c3d/6b5a4c3d.vhd', 'typical')],
+    cause='Per the read of the community health check: it matches the CIFS message "has not responded in", the NFS "not responding" and the hung-task "blocked for more than", and its config comment warns the hung-task detector stops logging after a few warnings and can miss a long wedge. It also reports "Input/output error" in SMlog/xensource.log. Linking them to this symptom is the scenario\'s assumption.',
+    resolution=['Probe each network mount with a stat and list processes in uninterruptible sleep (D state).', 'Check the file server and the disk behind the I/O errors (SMART, controller, array).'],
+    kbs=[kb(XS, XS_T, 'primary', '2026-10-13')], match=r'has not responded|blocked for more than|I/O error|Input/output', notes=VN2)
+
+tpl('CT-68', 'XCP-ng host: tapdisk crashes, the dom0 kernel then logs a panic / soft lockup', 'xcpng', '8.x',
+    'A host rebooted by itself overnight and a VM disk process crashed shortly before.',
+    'mixed', ['xcp.tapdisk_dead', 'xcp.kernel_fault'], [
+        (-2400, SMLOG, '{s} xcp01 SM: [9021] Raising exception [46, The VDI is not available [opterr=TapdiskNotRunning: Tapdisk(vhd:/dev/VG_XenStorage-0a1b/VHD-6b5a) minor=2]]', 'typical'),
+        (-2390, DMN, '{s} xcp01 systemd-coredump[5521]: Process 3321 (tapdisk) of user 0 dumped core.', 'typical'),
+        (-1500, KERN, '{s} xcp01 kernel: watchdog: BUG: soft lockup - CPU#3 stuck for 23s! [kworker/3:1:221]', 'typical'),
+        (-1490, KERN, '{s} xcp01 kernel: Kernel panic - not syncing: Fatal exception in interrupt', 'typical')],
+    cause='Per the read of the community health check: its config says TapdiskNotRunning means tapdisk died and pairs with a core.tapdisk.* dump, and it flags dmesg "call trace" lines, /var/crash and systemd coredumps. That the crash preceded the panic here is the scenario\'s assumption.',
+    resolution=['Keep the core dump and /var/crash files; check hardware (memory, storage controller) and the tapdisk/driver named in the trace.'],
+    kbs=[kb(XS, XS_T, 'primary', '2026-10-13')], match=r'TapdiskNotRunning|tapdisk|soft lockup|Kernel panic|Call Trace', notes=VN2)
 
 # ============================================================================= not templated (kept in the report only)
 out = dict(version=1,

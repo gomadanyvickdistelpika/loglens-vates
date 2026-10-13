@@ -76,6 +76,13 @@ NOISY_XCP = {
     'var/log/kern.log': [
         '{s} xcp01 kernel: [{n}.{c}] xen: grant table gnttab_max_frames reached, retry ok',
         '{s} xcp01 kernel: [{n}.{c}] nfs: server 192.0.2.60 OK',
+        '{s} xcp01 kernel: [{n}.{c}] device-mapper: multipath: path 8:16 is now active',
+        '{s} xcp01 kernel: [{n}.{c}] megaraid_sas 0000:03:00.0: firmware crash dump: disabled',
+        '{s} xcp01 kernel: [{n}.{c}] oom_score_adj of xapi set to -1000',
+        '{s} xcp01 kernel: [{n}.{c}] tapdisk[{n}]: tap-ctl list reports 3 tapdisks, all running',
+    ],
+    'var/log/xha.log': [
+        '{s} xcp01 multipathd[812]: mpatha: remaining active paths: 2',
     ],
 }
 NOISY_XO = {
@@ -370,6 +377,103 @@ scn('neg_xo', 'xo', 'Checking the backup report', [], [
     (-15000, XJ, '{s} xo01 xo-server[771]: {u} xo:backups:worker INFO Backup job nightly completed successfully in 9m'),
     (-14990, XJ, '{s} xo01 xo-server[771]: {u} xo:main INFO certificate for xo01.lab.example is valid for 300 days'),
     (-14980, XU, '{s} xoa xoa-updater[412]: INFO the appliance is up to date'),
+])
+
+
+
+# ============================================================ storage / kernel signals (second round, written after reviewing a public health-check tool)
+scn('mp_failing_path', 'xcpng', 'Storage paths flapping on host xcp02', ['xcp.multipath_fail'], [
+    (-1500, KN, '{s} xcp02 kernel: device-mapper: multipath: Failing path 8:48.'),
+    (-1490, KN, '{s} xcp02 kernel: device-mapper: multipath: Failing path 8:64.'),
+])
+scn('mp_remaining_zero', 'xcpng', 'All storage paths lost on one host', ['xcp.multipath_fail'], [
+    (-1500, DM, '{s} xcp02 multipathd[812]: mpathb: remaining active paths: 0'),
+    (-1490, DM, '{s} xcp02 multipathd[812]: checker failed path 8:16 in map mpathb'),
+])
+scn('mp_path_down', 'xcpng', 'Intermittent storage disconnects', ['xcp.multipath_fail'], [
+    (-1200, DM, '{s} xcp02 multipathd[812]: sdc: tur checker reports path is down'),
+])
+scn('lun_changed', 'xcpng', 'Array was reconfigured and a host complains about LUNs', ['xcp.lun_change'], [
+    (-1500, KN, '{s} xcp02 kernel: scsi 6:0:0:2: Warning! Received an indication that the LUN assignments on this target have changed. The Linux SCSI layer does not automatically remap LUN assignments.'),
+])
+scn('lun_then_sr_unplug', 'xcpng', 'SR missing after the storage team changed the mapping', ['xcp.lun_change'], [
+    (-3000, KN, '{s} xcp02 kernel: scsi 6:0:0:2: Warning! Received an indication that the LUN assignments on this target have changed.'),
+    (-2000, SM, '{s} xcp02 SM: [{n}] SR device /dev/disk/by-scsid/3600508b1001c9f2e not found: No such file or directory'),
+    (-1990, X, '{s} xcp02 xapi: [error|xcp02|{n} ||xapi] PBD_PLUG_FAILED for SR iscsi-sr01'),
+])
+scn('cifs_stall', 'xcpng', 'ISO library mount hangs the host console', ['xcp.mount_stall'], [
+    (-1500, KN, '{s} xcp01 kernel: CIFS: VFS: Server 192.0.2.70 has not responded in 180 seconds. Reconnecting...'),
+    (-1400, KN, '{s} xcp01 kernel: CIFS: VFS: Server 192.0.2.70 has not responded in 180 seconds. Reconnecting...'),
+])
+scn('hung_task', 'xcpng', 'Host becomes unresponsive, processes stuck', ['xcp.mount_stall'], [
+    (-1500, KN, '{s} xcp01 kernel: INFO: task tapdisk:2210 blocked for more than 120 seconds.'),
+    (-1499, KN, '{s} xcp01 kernel: "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.'),
+])
+scn('oom_killer', 'xcpng', 'A process died on the host without explanation', ['xcp.dom0_oom'], [
+    (-1500, KN, '{s} xcp01 kernel: python invoked oom-killer: gfp_mask=0x24201ca, order=0, oom_score_adj=0'),
+    (-1499, KN, '{s} xcp01 kernel: Out of memory: Killed process 4123 (python) total-vm:2104576kB, anon-rss:1048576kB, file-rss:0kB'),
+])
+scn('oom_cgroup', 'xcpng', 'A VM process disappeared', ['xcp.dom0_oom'], [
+    (-1500, KN, '{s} xcp01 kernel: Memory cgroup out of memory: Killed process 777 (qemu-dm) total-vm:812345kB, anon-rss:700000kB, file-rss:0kB'),
+])
+scn('oom_then_xapi_exit', 'xcpng', 'xe commands time out, host disconnected in XO', ['xcp.dom0_oom'], [
+    (-2400, KN, '{s} xcp01 kernel: xapi invoked oom-killer: gfp_mask=0x24201ca, order=0'),
+    (-2399, KN, '{s} xcp01 kernel: Out of memory: Killed process 3321 (xapi) total-vm:2104576kB, anon-rss:1048576kB, file-rss:0kB'),
+    (-2300, DM, '{s} xcp01 systemd[1]: xapi.service: main process exited, code=killed, status=9/KILL'),
+    (-2290, X, '{s} xcp01 xe: Connection refused (calling connect )'),
+])
+scn('tapdisk_not_running', 'xcpng', 'A VM disk cannot be attached', ['xcp.tapdisk_dead'], [
+    (-1500, SM, '{s} xcp01 SM: [{n}] Raising exception [46, The VDI is not available [opterr=TapdiskNotRunning: Tapdisk(vhd:/dev/VG_XenStorage-0a1b/VHD-6b5a) minor=2]]'),
+])
+scn('tapdisk_segfault', 'xcpng', 'VM froze, disk process crashed', ['xcp.tapdisk_dead'], [
+    (-1500, KN, '{s} xcp01 kernel: tapdisk[3321]: segfault at 0 ip 00007f3a2b3c4d5e sp 00007ffd1c2b3a40 error 4 in tapdisk[400000+12000]'),
+])
+scn('tapdisk_dumped_core', 'xcpng', 'Storage process crashed overnight', ['xcp.tapdisk_dead'], [
+    (-1500, DM, '{s} xcp01 systemd-coredump[5521]: Process 3321 (tapdisk) of user 0 dumped core.'),
+])
+scn('datapath_not_detached', 'xcpng', 'Backup fails and the disk cannot be unplugged', ['xcp.datapath_leak'], [
+    (-1500, SM, '{s} xcp01 SM: [{n}] VDI 6b5a4c3d is not detached cleanly'),
+    (-1490, SM, '{s} xcp01 SM: [{n}] vdi_detach: the VDI is still open on host xcp01'),
+])
+scn('datapath_blocked_pid', 'xcpng', 'SR operations are slow and some fail with lock errors', ['xcp.datapath_leak'], [
+    (-1500, SM, '{s} xcp01 SM: [{n}] Failed to lock /var/lock/sm/0a1b2c3d/sr on first attempt, blocked by PID 4411'),
+])
+scn('datapath_resume_failed', 'xcpng', 'VM paused after a snapshot and will not resume', ['xcp.datapath_leak'], [
+    (-1500, SM, '{s} xcp01 SM: [{n}] tap-ctl: tapdisk 5521 state RESUME_FAILED, still paused'),
+])
+scn('datapath_illegal_transition', 'xcpng', 'Every attach of one disk fails on host xcp01', ['xcp.datapath_leak'], [
+    (-1500, X, '{s} xcp01 xapi: [error|xcp01|{n} ||storage_access] Illegal_transition: Attached -> Activated'),
+    (-1490, X, '{s} xcp01 xapi: [ warn|xcp01|{n} ||storage_access] datapath vbd/0/xvdb leaked on SR 0a1b2c3d'),
+])
+scn('datapath_chain_backup_vmfail', 'xcpng', 'Backups fail and a VM cannot start after a failed export', ['xcp.datapath_leak'], [
+    (-3000, SM, '{s} xcp01 SM: [{n}] VDI 6b5a4c3d is not detached cleanly'),
+    (-2990, SM, '{s} xcp01 SM: [{n}] tap.deactivate: Warning, No such Tapdisk(minor=5)'),
+    (-2000, XJ, '{s} xo01 xo-server[771]: {u} xo:backups:worker ERROR Backup job nightly failed: VDI_IO_ERROR(Device I/O errors)'),
+    (-600, X, '{s} xcp01 xapi: [error|xcp01|{n} ||xapi] Failed to start the VM web07: the VDI cannot be attached'),
+])
+scn('io_error_sm', 'xcpng', 'Storage errors in the SM log', ['xcp.io_error'], [
+    (-1500, SM, '{s} xcp01 SM: [{n}] Error: [Errno 5] Input/output error: /var/run/sr-mount/0a1b2c3d/6b5a4c3d.vhd'),
+])
+scn('io_error_blk', 'xcpng', 'Disk errors in the kernel log', ['xcp.io_error'], [
+    (-1500, KN, '{s} xcp01 kernel: blk_update_request: I/O error, dev sdb, sector 123456 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 0'),
+    (-1490, KN, '{s} xcp01 kernel: blk_update_request: I/O error, dev sdb, sector 123464 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 0'),
+])
+scn('kernel_panic', 'xcpng', 'Host rebooted by itself', ['xcp.kernel_fault'], [
+    (-900, KN, '{s} xcp01 kernel: Kernel panic - not syncing: Fatal exception in interrupt'),
+    (-899, KN, '{s} xcp01 kernel: Call Trace:'),
+])
+scn('kernel_soft_lockup', 'xcpng', 'Host very slow, CPU stuck messages', ['xcp.kernel_fault'], [
+    (-900, KN, '{s} xcp01 kernel: watchdog: BUG: soft lockup - CPU#3 stuck for 23s! [kworker/3:1:221]'),
+])
+scn('kernel_oops', 'xcpng', 'Kernel error then VMs hung', ['xcp.kernel_fault'], [
+    (-900, KN, '{s} xcp01 kernel: BUG: unable to handle kernel NULL pointer dereference at 0000000000000008'),
+])
+scn('neg_kernel', 'xcpng', 'Checking dom0 health after the maintenance window', [], [
+    (-1500, KN, '{s} xcp01 kernel: megaraid_sas 0000:03:00.0: firmware crash dump: disabled'),
+    (-1400, KN, '{s} xcp01 kernel: device-mapper: multipath: path 8:16 is now active'),
+    (-1300, DM, '{s} xcp01 multipathd[812]: mpatha: remaining active paths: 2'),
+    (-1200, KN, '{s} xcp01 kernel: oom_score_adj of xapi set to -1000'),
+    (-1100, KN, '{s} xcp01 kernel: tapdisk[3321]: tap-ctl list reports 3 tapdisks, all running'),
 ])
 
 

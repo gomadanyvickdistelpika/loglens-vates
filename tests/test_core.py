@@ -243,6 +243,39 @@ class DfSnapshot(unittest.TestCase):
             shutil.rmtree(d, ignore_errors=True)
 
 
+class DfEarlyWarning(unittest.TestCase):
+    def _run(self, df_text):
+        d = tempfile.mkdtemp(prefix='lvdf2_')
+        try:
+            t = gen.build_dir(os.path.join(d, 'x'), 'sr_insufficient_space')
+            os.makedirs(os.path.join(d, 'x/commands'), exist_ok=True)
+            with open(os.path.join(d, 'x/commands/df.txt'), 'w') as f:
+                f.write(df_text)
+            b = open_bundle('x', os.path.join(d, 'x'))
+            return Analyzer(b, issue=t['issue'], anchor=t['anchor']).run()
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_75_to_94_percent_is_a_medium_early_warning(self):
+        r = self._run('Filesystem Size Used Avail Use% Mounted on\n/dev/sda1 18G 14G 3G 80% /\n/dev/sda5 3.9G 58M 3.6G 2% /var/log\n')
+        snap = [f for f in r['findings'] if f['id'] == 'snap.fs_high']
+        self.assertTrue(snap)
+        self.assertEqual(snap[0]['severity'], 'medium')
+        self.assertIn('/ (80%)', snap[0]['title'])
+        self.assertNotIn('snap.fs_full', [f['id'] for f in r['findings']])
+
+    def test_under_75_percent_is_silent(self):
+        r = self._run('Filesystem Size Used Avail Use% Mounted on\n/dev/sda1 18G 9G 8G 52% /\n')
+        self.assertFalse([f for f in r['findings'] if f['id'].startswith('snap.')])
+
+    def test_95_percent_still_high_and_lists_only_the_full_mounts(self):
+        r = self._run('Filesystem Size Used Avail Use% Mounted on\n/dev/sda1 18G 18G 1G 99% /\n/dev/sda5 3.9G 3.2G 0.7G 82% /var/log\n')
+        snap = [f for f in r['findings'] if f['id'] == 'snap.fs_full'][0]
+        self.assertEqual(snap['severity'], 'high')
+        self.assertIn('/ (99%)', snap['title'])
+        self.assertNotIn('/var/log', snap['title'])
+
+
 class KbResearch(unittest.TestCase):
     """Every rule is covered or explicitly 'none'; honest wording; well-formed public links."""
 

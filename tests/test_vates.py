@@ -112,7 +112,52 @@ class Ranking(unittest.TestCase):
         self.assertLess(order.index('xcp.ha_fence'), order.index('xcp.master_unreachable'))
 
 
+class RankingStorage(unittest.TestCase):
+    def _res(self, name, noisy=False):
+        d = tempfile.mkdtemp(prefix='lvx_vr_')
+        try:
+            import vates_gen
+            t = vates_gen.build_dir(os.path.join(d, 'x'), name, noisy=noisy)
+            b = open_bundle('t', os.path.join(d, 'x'))
+            try:
+                return Analyzer(b, issue=t['issue'], anchor=t['anchor']).run()
+            finally:
+                b.close()
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_datapath_leak_is_root_of_backup_and_vm_start(self):
+        sc = {f['id']: f for f in self._res('datapath_chain_backup_vmfail')['findings']}
+        self.assertGreater(sc['xcp.datapath_leak']['score'], sc['xcp.xo_backup']['score'])
+        self.assertGreater(sc['xcp.datapath_leak']['score'], sc['xcp.vm_start_fail']['score'])
+        self.assertIn('root_of', sc['xcp.datapath_leak'])
+
+    def test_oom_is_root_of_xapi_down(self):
+        res = self._res('oom_then_xapi_exit')
+        order = [f['id'] for f in res['findings']]
+        self.assertLess(order.index('xcp.dom0_oom'), order.index('xcp.xapi_down'))
+
+    def test_lun_change_is_root_of_sr_unplug(self):
+        order = [f['id'] for f in self._res('lun_then_sr_unplug')['findings']]
+        self.assertLess(order.index('xcp.lun_change'), order.index('xcp.sr_unplugged'))
+
+    def test_kernel_negative_bundle_has_no_findings_from_near_misses(self):
+        bad = [f['id'] for f in self._res('neg_kernel', noisy=True)['findings'] if f['kind'] == 'rule']
+        self.assertEqual(bad, [])
+
+
 class KbHonesty(unittest.TestCase):
+    def test_read_pages_are_marked_and_dated(self):
+        read = [e for e in kb._load()['entries'] if e.get('basis') == 'read']
+        self.assertGreaterEqual(len(read), 9)
+        for e in read:
+            self.assertIn('read on 2026-10-13', e['notes'])
+            self.assertIn('GPL-3.0', e['notes'])
+            self.assertIn('not run or audited', e['notes'])
+            for a in e['articles']:
+                self.assertEqual(a['seen'], '2026-10-13')
+
+
     def test_vates_articles_are_urls_on_public_vates_hosts_with_seen_date(self):
         n = 0
         for e in kb._load()['entries']:

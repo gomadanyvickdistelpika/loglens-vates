@@ -393,27 +393,35 @@ class Analyzer:
                 with open(self.bundle.resolve(rel), 'r', encoding='utf-8', errors='replace') as fh:
                     for n, line in enumerate(fh, 1):
                         m = self._DF_LINE.search(line)
-                        if m and int(m.group(1)) >= 95 and not self._DF_SKIP.match(m.group(2)):
+                        if m and int(m.group(1)) >= 75 and not self._DF_SKIP.match(m.group(2)):
                             found.append((rel, n, line.rstrip('\n')[:300], int(m.group(1)), m.group(2)))
             except OSError:
                 continue
         return found
 
     def _snapshot_findings(self, found, corroborated):
+        """df output at collection time: >= 95% is a high finding; 75-94% is an early (medium) warning for dom0 / appliance filesystems."""
         if not found:
             return []
+        crit = [f for f in found if f[3] >= 95]
+        use = crit or found
+        full = bool(crit)
         rel = 25 if 'disk-space' in self.topics else 0
-        score = round(SEV_BASE['high'] + 20 + (10 if corroborated else 0) + rel, 1)
-        mounts = ', '.join(sorted({'%s (%d%%)' % (m, p) for _r, _n, _l, p, m in found}))
+        score = round(SEV_BASE['high' if full else 'medium'] + (20 if full else 10) + (10 if corroborated else 0) + rel, 1)
+        mounts = ', '.join(sorted({'%s (%d%%)' % (m, p) for _r, _n, _l, p, m in use}))
         return [dict(
-            id='snap.fs_full', title='Filesystem at/over 95%% in df output: %s' % mounts, source='command output', kind='snapshot',
-            severity='high', score=score, relevance=rel, confidence='high' if corroborated else 'medium', chronic=False, advisory=False,
-            count=len(found), strong=len(found), weak=0, first_seen='snapshot (no timestamp)', last_seen='snapshot (no timestamp)',
+            id='snap.fs_full' if full else 'snap.fs_high',
+            title=('Filesystem at/over 95%% in df output: %s' if full else 'Filesystem at/over 75%% in df output (early warning): %s') % mounts,
+            source='command output', kind='snapshot',
+            severity='high' if full else 'medium', score=score, relevance=rel, confidence='high' if corroborated else 'medium', chronic=False, advisory=False,
+            count=len(use), strong=len(use), weak=0, first_seen='snapshot (no timestamp)', last_seen='snapshot (no timestamp)',
             nearest_to_anchor_s=None, topics=['disk-space'],
-            advice='Captured when the bundle was collected, so it shows the state at collection time, not necessarily at the incident. A full / or /var/log on an XCP-ng host (or on the XO appliance) stops xapi, yum and logging; free space (du -xh /var/log | sort -h | tail), then restart the toolstack or reboot the host if xapi does not recover.',
+            advice=('Captured when the bundle was collected, so it shows the state at collection time, not necessarily at the incident. '
+                    + ('A full / or /var/log on an XCP-ng host (or on the XO appliance) stops xapi, yum and logging; free space (du -xh /var/log | sort -h | tail), then restart the toolstack or reboot the host if xapi does not recover.' if full else
+                       'Not full yet, but dom0 filesystems this busy leave little room for logs, updates and snapshots; find what is growing (du -xh /var/log | sort -h | tail) before it reaches 95%.')),
             kb=None, search='XCP-ng /var/log full dom0 disk usage control domain',
-            files=[dict(file=r, count=1) for r in sorted({f[0] for f in found})][:5], variants=[],
-            samples=[dict(file=r, line=n, ts='snapshot', text=l, context=[]) for r, n, l, _p, _m in found[:3]],
+            files=[dict(file=r, count=1) for r in sorted({f[0] for f in use})][:5], variants=[],
+            samples=[dict(file=r, line=n, ts='snapshot', text=l, context=[]) for r, n, l, _p, _m in use[:3]],
             spark=[0] * self.nb, _first=0)]
 
     # ---- scoring

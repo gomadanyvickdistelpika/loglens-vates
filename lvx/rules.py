@@ -98,7 +98,7 @@ rule('xcp.xo_build', 'Xen Orchestra from sources: build / node / yarn failure', 
 rule('xcp.xoa_update', 'XOA / XO updater failure (xoa-updater, proxy TLS, registration, network)', 'xo', 'high', ['upgrade', 'services', 'network'],
      'xoa-updater|update.json|xen-orchestra.com|nodejs.org|node_tls|not registered',
      r'xoa-updater.{0,100}(?:fail|error|cannot|unable|timed out|certificate)|update\.json.{0,60}(?:corrupt|invalid|unexpected|parse)|(?:unable to|cannot|failed to) (?:reach|connect to|resolve) \S*(?:xen-orchestra\.com|nodejs\.org)|xen-orchestra\.com.{0,80}(?:ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN)|getaddrinfo (?:ENOTFOUND|EAI_AGAIN) \S*(?:xen-orchestra\.com|nodejs\.org)|NODE_TLS_REJECT_UNAUTHORIZED|(?:appliance|XOA) is not registered',
-     'The Xen Orchestra Appliance updater cannot complete. Run xoa check, read journalctl -u xoa-updater, and verify: registration, DNS and outbound 443 to xen-orchestra.com and nodejs.org, a TLS-intercepting proxy, free disk space, and a corrupted /var/lib/xoa-updater/update.json (delete and rerun the upgrade).',
+     'The Xen Orchestra Appliance updater cannot complete. Run xoa check, read journalctl -u xoa-updater, and verify: registration, DNS and outbound 443 to xen-orchestra.com and nodejs.org, a TLS-intercepting proxy, free disk space, and a corrupted /var/lib/xoa-updater/update.json (delete and rerun the upgrade). If an update left the UI dead, a third-party script (xo-config-recover.py in Fohdeesha/xcp-stuff, GPL-3.0, not reviewed by LogLens) can export the XO config without a working xo-server; take a backup and read it before running it.',
      search='XOA update failed xoa-updater xoa check proxy TLS registration')
 
 rule('xcp.xo_disk_full', 'Xen Orchestra: appliance or backup remote out of disk space (ENOSPC)', 'xo', 'high', ['disk-space', 'backup', 'upgrade'],
@@ -107,6 +107,49 @@ rule('xcp.xo_disk_full', 'Xen Orchestra: appliance or backup remote out of disk 
      'The XO appliance (or a backup remote) has no free space: updates, backups and logging then fail with ENOSPC. Run df -h on the appliance and the remote, free space (old backups, logs, node/yarn caches) and rerun the failed job or update.',
      search='Xen Orchestra ENOSPC no space left on device update failed backup', root_for=('xcp.xo_backup', 'xcp.xoa_update'),
      files=r'(?:xo-server|xo-web|xo-proxy|xoa|xo/|xo_server|journalctl|xo-install|xen-?orchestra)')
+
+# ---- storage / kernel signals (ideas from a review of the public Fohdeesha/xcp-stuff health check, GPL-3.0; patterns written independently) ----
+rule('xcp.multipath_fail', 'XCP-ng storage: multipath path failures (device-mapper / multipathd)', 'xcpng', 'high', ['storage', 'network'],
+     'multipath',
+     r'device-mapper: multipath.{0,40}Failing path|multipathd?.{0,60}remaining active paths: 0\b|multipathd?.{0,100}(?:path down|path is down|checker (?:reports|failed))',
+     'The kernel or multipathd reports failed storage paths. Check multipath -ll on the host, the fabric/NIC/cable and switch for the failed path, and the array; if every path is gone the SRs on that LUN fail (see the SR / PBD rule). A failing-path message with the same device repeating points at one bad link.',
+     search='XCP-ng multipath Failing path device-mapper multipathd remaining active paths', root_for=('xcp.sr_unplugged', 'xcp.mount_stall', 'xcp.io_error'))
+rule('xcp.mount_stall', 'XCP-ng host: network mount stalled / hung task (CIFS, NFS, kernel hung-task detector)', 'xcpng', 'high', ['storage', 'network', 'performance'],
+     'has not responded in|blocked for more than|hung_task',
+     r'has not responded in \d+ seconds|task \S+ blocked for more than \d+ seconds|hung_task_timeout_secs',
+     'A network filesystem (CIFS/SMB ISO or backup mount, NFS) stopped answering or a process has been stuck in uninterruptible sleep (kernel hung-task detector). Check the file server and network path, df/stat on the mounts, and processes in D state (ps -eo stat,pid,cmd | grep "^D"). The hung-task detector stops logging after a few warnings, so a long wedge can be under-reported.',
+     search='XCP-ng CIFS has not responded NFS not responding task blocked for more than 120 seconds', root_for=('xcp.xapi_down', 'xcp.sr_unplugged'))
+rule('xcp.lun_change', 'XCP-ng storage: array reports the LUN assignments changed', 'xcpng', 'high', ['storage'],
+     'lun assignments',
+     r'LUN assignments on this target have changed',
+     'The array told the host that its LUN mapping changed (LUN added, removed or remapped). If this was not planned, rescan carefully and verify that each SR still sees its own LUN (multipath -ll, SR / PBD state) before plugging anything; mismatched LUNs can bring the wrong disk to an SR.',
+     search='Warning! Received an indication that the LUN assignments on this target have changed XCP-ng', root_for=('xcp.multipath_fail', 'xcp.sr_unplugged'))
+rule('xcp.dom0_oom', 'XCP-ng host: dom0 or guest process killed by the OOM killer', 'xcpng', 'high', ['memory', 'crash'],
+     'out of memory|oom|killed process',
+     r'Out of memory: Kill(?:ed)? process|invoked oom-killer|oom-kill:|Killed process \d+ \(.{0,40}\).{0,60}(?:total-vm|anon-rss)',
+     'The kernel ran out of memory and killed a process. Check which one: if it was xapi/xenopsd/a storage process the toolstack or SRs will misbehave afterwards. Compare dom0 memory with the pool size (xe vm-param-get on the control domain), look for leaks and consider raising dom0 memory.',
+     search='XCP-ng dom0 out of memory oom-killer killed process xapi', root_for=('xcp.xapi_down', 'xcp.vm_start_fail', 'xcp.sr_unplugged'))
+rule('xcp.tapdisk_dead', 'XCP-ng storage: tapdisk died or is not running', 'xcpng', 'high', ['storage', 'crash', 'vm'],
+     'tapdisk',
+     r'TapdiskNotRunning|tapdisk.{0,60}(?:died|crashed|segfault|killed|dumped core|exited unexpectedly)|core\.tapdisk',
+     'The tapdisk process that serves a VM disk died or was not found. Look for a core.tapdisk dump, the SMlog lines just before it and kernel messages, and check the SR and the VM disk; a VM using that disk may be paused or hung and its next attach can fail.',
+     search='XCP-ng TapdiskNotRunning tapdisk died core.tapdisk SMlog', root_for=('xcp.vm_start_fail', 'xcp.xo_backup', 'xcp.migrate_fail'))
+rule('xcp.datapath_leak', 'XCP-ng storage: leaked / stuck storage datapath (VDI not detached cleanly)', 'xcpng', 'high', ['storage', 'vm', 'backup'],
+     'not detached cleanly|still open on host|blocked by pid|no such tapdisk|resume_failed|illegal_transition|leaked',
+     r'not detached cleanly|is still open on host|Failed to lock .{0,120}blocked by PID|tap\.deactivate: Warning, No such Tapdisk|RESUME_FAILED|Illegal_transition|datapath.{0,40}leaked|leaked.{0,40}datapath',
+     'A VDI was left attached/leaked on a host (dead dom0 datapath, stale dom0 VBD, paused or wedged tapdisk, stuck GC flag). Later attaches, exports, backups and unplugs of that VDI on the host then fail. Do not clean it by hand blindly: identify the VDI and the tapdisk (tap-ctl list), make sure no VM really uses it, and consider a reviewed repair tool (see the KB note) or a host reboot.',
+     search='XCP-ng VDI leaked datapath not detached cleanly still open on host tapdisk paused', root_for=('xcp.vm_start_fail', 'xcp.xo_backup', 'xcp.migrate_fail'))
+rule('xcp.io_error', 'XCP-ng storage: Input/output error in SM / xapi / kernel logs', 'xcpng', 'medium', ['storage', 'performance'],
+     'input/output error|i/o error',
+     r'Input/output error|blk_update_request: I/O error, dev \S+|Buffer I/O error on dev \S+',
+     'An I/O error reached the storage manager or xapi. Find the device or mount behind it (the lines before), then check the disk/array/NFS server, multipath and the SR health; repeated errors on one SR usually precede failed backups and VM freezes.',
+     search='XCP-ng SMlog Input/output error SR', files=r'(?:smlog|xensource|daemon\.log|kern\.log|messages)',
+     root_for=('xcp.xo_backup',))
+rule('xcp.kernel_fault', 'XCP-ng host: kernel panic / oops / call trace / soft lockup', 'xcpng', 'high', ['crash', 'hardware'],
+     'call trace|kernel panic|bug:|oops|general protection',
+     r'Kernel panic - not syncing|Call Trace:|BUG: unable to handle|BUG: soft lockup|\bOops:|general protection fault',
+     'The dom0 kernel logged a fault. Keep the surrounding lines and any /var/crash dump; check hardware (memory, storage controller, NIC firmware/driver) and the driver named in the trace. A trace after "blocked for more than" is a hung task, not a panic.',
+     search='XCP-ng dom0 kernel panic call trace soft lockup', root_for=('xcp.xapi_down', 'xcp.ha_fence'))
 
 BY_ID = {r['id']: r for r in R}
 for _r in R:

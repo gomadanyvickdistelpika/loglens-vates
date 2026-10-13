@@ -9,9 +9,9 @@ import os
 VATES_SEEN = '2026-10-10'     # date the pages below appeared in web-search results
 
 
-def A(i, title):
+def A(i, title, seen=None):
     assert str(i).startswith('https://'), i
-    return dict(id=str(i), title=title, seen=VATES_SEEN)
+    return dict(id=str(i), title=title, seen=seen or VATES_SEEN)
 
 
 E = []
@@ -133,8 +133,46 @@ kb('XOA / XO update failures', ['xcp.xoa_update'],
    'Per the summaries: transparent proxies breaking the updater with SSL/TLS errors, a corrupted or missing package, missing network access to xen-orchestra.com and nodejs.org on 443, or a missing registration.',
    ['xoa check, then journalctl -u xoa-updater -f -n 50 while reproducing.', 'Delete /var/lib/xoa-updater/update.json and run xoa-updater --upgrade to force a fresh download.', 'Proxy workaround from the docs summary (lowers TLS security): NODE_TLS_REJECT_UNAUTHORIZED=0 in /etc/xo-appliance/env, restart xoa-updater.'])
 
+# ----------------------------------------------------------------------------- third-party repo reviewed 2026-10-13 (page text READ, not just a search summary)
+# Fohdeesha/xcp-stuff (GPL-3.0): README.md, src/checks.py and src/config.py were fetched and read; storage-state-fixer.py and snapshot-fixer.py
+# were read in part (storage-state-fixer.py only its first 100k of ~849k characters).  Community tool, not official Vates guidance; LogLens has not run it.
+XS = 'https://github.com/Fohdeesha/xcp-stuff'
+XS_SEEN = '2026-10-13'
+XS_ART = A(XS, 'Fohdeesha/xcp-stuff: XCP-ng / XOA health check and repair scripts (README, src/checks.py, src/config.py read)', XS_SEEN)
+XS_NOTE = 'Third-party community project (GPL-3.0), read on 2026-10-13 (the repo pages themselves, not only a search summary). LogLens has not run or audited these scripts: read and test before use.'
+kb('Multipath path failures: kernel message the community health check watches', ['xcp.multipath_fail'], [XS_ART],
+   'The health check scans kern.log and the dmesg ring for "device-mapper: multipath: Failing path" and reports timestamped events, because the per-map path_faults counter never resets; it also flags maps with unusable or mismatched path counts across hosts.',
+   ['Compare path counts per map across hosts and look for a map with no usable path (multipath -ll).'], notes=XS_NOTE, basis='read')
+kb('Network mount stalls and hung tasks: phrases the community health check watches', ['xcp.mount_stall'], [XS_ART],
+   'It matches the CIFS message "has not responded in", the NFS message "not responding" and the kernel hung-task message "blocked for more than". Its config comment says the hung-task detector stops logging after a set number of warnings and did not fire at all on the host the check was built on, so absence of the message proves nothing.',
+   ['Probe each network mount with a stat (it times out after 10 s in that tool) and look for processes stuck in uninterruptible sleep.'], notes=XS_NOTE, basis='read')
+kb('LUN assignments changed: kernel message the community health check watches', ['xcp.lun_change'], [XS_ART],
+   'The health check scans kern.log for "Received an indication that the LUN assignments on this target have changed" and reports "Changed - see below"; the README does not describe a fix.',
+   [], notes=XS_NOTE, basis='read')
+kb('Out-of-memory events and dom0 memory use: what the community health check flags', ['xcp.dom0_oom'], [XS_ART],
+   'It lists dmesg lines containing "out of memory" as OOM events and flags dom0 memory use above 65% (disk above 75%); it also flags a too-small dom0 when XOSTOR is used (minimum 15 GB in its config).',
+   [], notes=XS_NOTE, basis='read')
+kb('Tapdisk death, I/O errors and SM log phrases the community tools look for', ['xcp.tapdisk_dead', 'xcp.io_error'], [XS_ART],
+   'Its log scanner reports, per phrase, "Input/output error", "XENAPI_PLUGIN_FAILURE", "TapdiskNotRunning" and Python exceptions in SMlog and xensource.log (each with the .1 rotation, since rotation around 04:00 leaves the live file nearly empty in the morning). The config comment says TapdiskNotRunning means tapdisk died and pairs with a core.tapdisk.* dump.',
+   ['Scan the rotated .1 file as well as the live file in the morning.'], notes=XS_NOTE, basis='read')
+kb('Leaked / stuck storage datapaths: what storage-state-fixer.py detects and why it matters', ['xcp.datapath_leak'], [XS_ART],
+   'Per the README: dead dom0 datapaths, stale dom0 VBDs, leaked datapaths with paused or wedged tapdisks and stuck GC flags make exports, backups or VBD unplugs fail. Per the script (read in part): with other datapaths still present xapi would have to make a state change it refuses (Illegal_transition), the VDI is marked leaked and every later attach on that host fails; it matches SMlog phrases such as "not detached cleanly", "is still open on host", "Failed to lock ... blocked by PID" and "tap.deactivate: Warning, No such Tapdisk".',
+   ['The tool (XCP-ng 8.3 only) runs as root on the pool master, reports what it found, and applies changes only after you type yes. Editing storage.db restarts xapi on that host; VMs keep running but HA is turned off and on around the restart. Download it instead of piping from curl; backups go to storage-state-fixer-data/.'],
+   notes=XS_NOTE + ' Do not run it blind: it changes storage.db.', basis='read')
+kb('Kernel faults: dmesg words/phrases the community health check flags', ['xcp.kernel_fault'], [XS_ART],
+   'It flags dmesg lines with the whole words panic, crash, rip, kill and the phrases "call trace" and "timed out", ignoring a known false positive: the megaraid driver prints a "firmware crash dump" line on load that is not a fault. It also reports /var/crash and systemd coredumps.',
+   [], notes=XS_NOTE, basis='read')
+kb('Snapshot-link repair: community script for broken snapshot_of records (related, no log signature)', ['xcp.sr_chain', 'xcp.xo_backup'], [XS_ART],
+   'Per the README: snapshot-fixer.py (XCP-ng 8.2 and 8.3) repairs incongruent snapshot links in the xapi database - a VM or VDI that is not a snapshot but has snapshot_of set, or a VDI recorded as a snapshot of itself. The README names no error string, so this is only related to snapshot/backup trouble, not a log match.',
+   ['dry-run shows the proposed changes; rewrite stops xapi, backs up the database, fixes it and restarts xapi (with HA handled); restore-backup restores the backup. Download it, run dry-run first.'],
+   notes=XS_NOTE + ' Only relevant if xapi really holds such records.', basis='read')
+kb('Xen Orchestra config export when the UI is dead after a failed update (community script)', ['xcp.xoa_update'], [XS_ART],
+   'Per the README: xo-config-recover.py exports the XO configuration (the same file as Settings > Config > Export) from XOA without a working xo-server, reading Redis (or the last dump.rdb); it does not modify anything; the output contains every pool root password; encrypted credential databases are not supported.',
+   ['Run as root on XOA (python3 <(curl ...) in the README); --check shows what would be exported without writing; --passphrase-file encrypts the output.'],
+   notes=XS_NOTE + ' Treat the output as a secret.', basis='read')
+
 lib = dict(researched=VATES_SEEN,
-           source='Titles and URLs of public Vates / XCP-ng / Xen Orchestra pages returned by web search on %s; only the search-result summaries were used, the pages themselves were not read.' % VATES_SEEN,
+           source='Titles and URLs of public Vates / XCP-ng / Xen Orchestra pages returned by web search on %s; only the search-result summaries were used, the pages themselves were not read, except the Fohdeesha/xcp-stuff entries (basis "read", seen 2026-10-13) whose pages were fetched and read.' % VATES_SEEN,
            entries=E)
 out = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lvx', 'kb_library.json')
 with open(out, 'w', encoding='utf-8', newline='\n') as f:
