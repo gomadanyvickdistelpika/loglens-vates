@@ -21,7 +21,10 @@ import argparse
 import json
 import os
 import platform
-import resource
+try:
+    import resource                                       # POSIX only
+except ImportError:                                       # Windows
+    resource = None
 import shutil
 import subprocess
 import sys
@@ -181,7 +184,7 @@ def run_worker(cid, step):
                    noise_removed_pct=round(100.0 * (1 - st.get('lines_in_window', 0) / max(total_lines, 1)), 2),
                    findings=len(res['findings']), rule_findings=len(rules),
                    bundle_mb=round(mb, 2), extract_s=round(t_open, 2), analyse_s=round(res['stats']['seconds'], 2), wall_s=round(wall, 2),
-                   lines_per_s=int(total_lines / max(wall, 1e-6)), peak_rss_mb=round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1),
+                   lines_per_s=int(total_lines / max(wall, 1e-6)), peak_rss_mb=(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1) if resource else 0.0),
                    window=res['window']['start'] + ' -> ' + res['window']['end'], anchor=fmt_ts(truth['anchor']))
         if c['root']:
             row['passed'] = (row['root_rank'] == 1 and len(row['also_found']) == len(c['also']) and not false_high and ev_ok is True)
