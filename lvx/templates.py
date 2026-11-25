@@ -1,7 +1,7 @@
-"""Synthetic scenarios (anonymised): loader, synthetic-bundle builder.
+"""Anonymised case templates: loader, synthetic-bundle builder.
 
-A template is a SYNTHETIC scenario built from public Vates search summaries (symptom, synthetic log excerpt, expected detections, cause and
-resolution as the summaries stated, and the public pages it cites).  Everything is invented/anonymised - see tools/build_case_templates.py.
+A template is a resolved-support-case pattern (symptom, synthetic log excerpt, expected detections, documented cause,
+resolution and the KB links the case cited).  Everything is invented/anonymised - see tools/build_case_templates.py.
 `build_bundle` writes a synthetic support bundle (background noise + the template's planted lines) for testing/training."""
 import json
 import os
@@ -10,9 +10,27 @@ import tarfile
 import time
 from calendar import timegm
 
+from . import packs
+
 _PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'case_templates.json')
+_PATH_VATES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'case_templates_vates.json')
 ANCHOR = timegm((2026, 3, 10, 10, 0, 0))     # incident time used by every template bundle
 _cache = None
+
+_ESX_NOISE = {
+    'var/run/log/vmkernel.log': ['{t} cpu{c}:2097{n})NMP: nmp_ResetDeviceLogThrottling:3569: last error status from device naa.600601604d3f4e00 repeated 2 times',
+                                 '{t} cpu{c}:2097{n})vmnic1: NIC Link is Up 10000 Mbps Full Duplex', '{t} cpu{c}:2097{n})Config: 681: "SIOControlFlag2" = 0, Old Value: 0, (Status: 0x0)'],
+    'var/run/log/hostd.log': ['{t} info hostd[2{n}] [Originator@6876 sub=Hostsvc opID=hb-{n}] Heartbeat ok, errors: 0', '{t} verbose hostd[2{n}] [Originator@6876 sub=Vimsvc.TaskManager opID=task-{n}] Task Completed successfully'],
+    'var/run/log/vpxa.log': ['{t} verbose vpxa[2{n}] [Originator@6876 sub=vpxaMoService opID=hb-{n}] heartbeat sent to vpxd seq {n}'],
+}
+_VC_NOISE = {
+    'var/log/vmware/vpxd/vpxd-1.log': ['{t} info vpxd[0{n}] [Originator@6876 sub=vpxLro opID=op-{n}] [VpxLRO] -- BEGIN task-{n} -- vim.PerformanceManager.queryStats',
+                                      '{t} warning vpxd[0{n}] [Originator@6876 sub=Default opID=op-{n}] Failed to read cached config for plugin {n}'],
+    'var/log/vmware/rhttpproxy/rhttpproxy.log': ['{t} info rhttpproxy[0{n}] [Originator@6876 sub=Proxy Req {n}] New proxy client 192.0.2.{c}:{n}'],
+    'var/log/vmware/sts/sts-runtime.log': ['{t} INFO  [{n}] [sts.audit] Successfully issued token for user svc-{c}@vsphere.local'],
+    'var/log/vmware/vpostgres/postgresql.log': ['{t} UTC LOG:  checkpoint complete: wrote {n} buffers (0.{c}%)'],
+}
+
 
 _XCP_NOISE = {
     'var/log/xensource.log': ['{s} xcp01 xapi: [ info|xcp01.lab.example|{n} ||xapi] Event.next completed in 12ms',
@@ -31,10 +49,21 @@ _XO_NOISE = {
 
 
 def _load():
+    """Combined template set: the VMware case templates plus (when the Vates pack is enabled) the XCP-ng / Xen Orchestra scenarios."""
     global _cache
     if _cache is None:
-        with open(_PATH, encoding='utf-8') as f:
-            _cache = json.load(f)
+        d = None
+        if packs.enabled('vmware'):
+            with open(_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+        if packs.enabled('vates'):
+            with open(_PATH_VATES, encoding='utf-8') as f:
+                v = json.load(f)
+            if d is None:
+                d = v
+            else:
+                d = dict(d, templates=d['templates'] + v['templates'], source=d['source'] + ' + ' + v['source'])
+        _cache = d
     return _cache
 
 
@@ -51,7 +80,7 @@ def get(tid):
 
 def info():
     d = _load()
-    return dict(count=len(d['templates']), source=d['source'])
+    return dict(count=len(d['templates']), reviewed_cases=d.get('reviewed_cases'), source=d['source'])
 
 
 def _iso(ts, ms):
@@ -74,6 +103,12 @@ def build_bundle(template, out_dir, days=3, step=120, seed=11, anchor=ANCHOR):
         raise ValueError('template %s has no log evidence (no bundle)' % t['id'])
     rnd = random.Random(seed)
     noise = {}
+    if t['product'] in ('esxi', 'both'):
+        noise.update(_ESX_NOISE)
+    if t['product'] in ('vcenter', 'sddc', 'both'):
+        noise.update(_VC_NOISE)
+    if t['product'] == 'guest':
+        noise.update(_ESX_NOISE)
     if t['product'] in ('xcpng', 'vates'):
         noise.update(_XCP_NOISE)
     if t['product'] in ('xo', 'vates'):
@@ -106,3 +141,8 @@ def pack_tgz(src_dir, out_path, inner='bundle'):
     with tarfile.open(out_path, 'w:gz') as tf:
         tf.add(src_dir, arcname=inner)
     return out_path
+
+
+def pack_templates(pack):
+    """Templates belonging to one rule pack ('vmware' or 'vates')."""
+    return [t for t in all_templates() if packs.group(t['product']) == pack]

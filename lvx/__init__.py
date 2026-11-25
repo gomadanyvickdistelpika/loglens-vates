@@ -1,2 +1,2 @@
-"""LogLens (lvx): targeted XCP-ng / Xen Orchestra log analysis."""
+"""LogLens (lvx): targeted VMware support-bundle log analysis. Shared engine."""
 __version__ = "1.0.0"

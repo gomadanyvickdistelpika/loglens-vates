@@ -18,18 +18,21 @@ def run(name, issue, when):
 class Faults(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        fb.xcp()
+        fb.esxi(); fb.vcsa()
 
     def ids(self, res):
         return [f['id'] for f in res['findings']]
 
-    def test_xcp_sr_full_is_root_of_coalesce_and_vm_start(self):
-        r = run('XCP-SRFULL-01', 'VM db02 fails to start and nightly backup fails', '2026-11-20T08:10:00Z')
+    def test_esxi_apd(self):
+        r = run('ESX-APD-01', 'VMs on datastore PROD-DS01 hung', '2026-11-20T09:14:00Z')
+        self.assertEqual(self.ids(r)[0], 'esx.apd')
+
+    def test_vcsa_disk_full_outranks_its_symptoms(self):
+        r = run('VCSA-DISKFULL-01', 'vCenter web client down, vpxd will not start', '2026-11-19T03:45:00Z')
         ids = self.ids(r)
-        self.assertEqual(ids[0], 'xcp.sr_full')
-        for want in ('xcp.coalesce_stuck', 'xcp.vm_start_fail', 'xcp.sr_chain', 'xcp.xo_backup'):
-            self.assertIn(want, ids)
-            self.assertLess(ids.index('xcp.sr_full'), ids.index(want))
+        self.assertEqual(ids[0], 'vc.disk_full')
+        self.assertLess(ids.index('vc.disk_full'), ids.index('vc.db'))
+        self.assertLess(ids.index('vc.disk_full'), ids.index('vc.service_down'))
 
 
 if __name__ == '__main__':

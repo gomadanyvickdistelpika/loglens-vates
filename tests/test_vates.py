@@ -182,7 +182,7 @@ class KbHonesty(unittest.TestCase):
                     self.assertIn(k['id'], lib, '%s cites %s which is not in the researched library' % (t['id'], k['id']))
 
     def test_summary_only_is_stated(self):
-        lib = kb._load()
+        lib = kb._load()['libs']['vates']
         self.assertIn('not read', lib['source'])
         for f in analyse('CT-53')['findings']:
             if f['id'].startswith('xcp.'):
