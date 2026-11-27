@@ -5,6 +5,14 @@
 > Scenarios are anonymised and **synthetic** (invented hosts `lab.example`, `192.0.2.x`); their log lines are approximations of real error names, not real logs. No customer data is included.
 > Never upload customer logs to a tool you do not control.
 
+> **This repo is a Vates-default build of [loglens](../loglens)**, which is the single source of truth (VMware + Vates rule packs on one engine). The engine, tests and tools here are synced from there with `python tools/sync_variants.py` (run from loglens), and the only difference is that the default rule pack is `vates`. Set `LVX_PACKS=vmware,vates` to get both families.
+
+**What is new here (all read-only):**
+* **Vates Toolbox** and **VTLog**: the Vates counterparts of the VMware GSS Toolbox / TDLog. A 9-module health check from the bundle's `commands/` output (disk, dom0 memory, SR space, HA, version drift, multipath, time sync, toolstack, certificates) with `python -m lvx toolbox BUNDLE -o report.txt`, and a whole-bundle signature history. See [docs/VATES_TOOLBOX.md](docs/VATES_TOOLBOX.md).
+* **Live SSH** to an XCP-ng host or Xen Orchestra appliance: `python -m lvx serve --live` (Live panel) or `python -m lvx live root@xcp01 --product xcpng`. See [docs/LIVE.md](docs/LIVE.md).
+* **Six virtual client bundles** (fictional client, 2 hosts + orchestrator, ~35 files each, six different faults) in [examples/virtual-estate](examples/virtual-estate/CASES.md); `python tools/live_demo.py BW-03` replays one into live mode.
+* Action plan with rollback and drafts in every report, and `--redact` for exports.
+
 Analysis **driven by the reported issue and its timestamp**: everything outside the incident window is treated as noise and findings are ranked by how well they
 fit the reported symptom, with root causes ranked above their downstream effects. One engine (`lvx/`, Python standard library only):
 

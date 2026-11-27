@@ -282,7 +282,7 @@ class KbResearch(unittest.TestCase):
     def test_library_schema(self):
         from lvx import kb
         from lvx.rules import BY_ID
-        lib = kb._load()
+        lib = kb._load()['libs']['vates']
         self.assertGreaterEqual(len(lib['entries']), 15)
         self.assertIn('not read', lib['source'])
         for e in lib['entries']:
@@ -304,7 +304,7 @@ class KbResearch(unittest.TestCase):
 
     def test_none_is_stated_plainly(self):
         from lvx import kb
-        g = kb.research(None, '', 'some random message', kind='generic')
+        g = kb.research(None, '', 'some random message', kind='generic', vendor='vates')
         self.assertEqual(g['status'], 'none')
         self.assertIn('No public Vates KB found', g['message'])
         r = kb.research('xcp.vm_start_fail', 'nothing that matches', 'x')
